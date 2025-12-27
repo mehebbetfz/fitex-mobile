@@ -1,0 +1,28 @@
+import { useAuth } from '@/src/auth/useAuth'
+import LoadingScreen from '@/src/components/Loading'
+import { Stack } from 'expo-router'
+
+export default function AuthLayout() {
+	const { user, isLoading } = useAuth()
+
+	if (isLoading) {
+		return <LoadingScreen />
+	}
+
+	// if (!user) {
+	// 	return null // Redirect handled in index.tsx
+	// }
+
+	return (
+		<Stack screenOptions={{ headerShown: false }}>
+			<Stack.Screen name='(tabs)' />
+			<Stack.Screen
+				name='workout'
+				options={{
+					presentation: 'modal',
+					animation: 'slide_from_bottom',
+				}}
+			/>
+		</Stack>
+	)
+}
