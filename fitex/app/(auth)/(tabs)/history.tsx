@@ -1,7 +1,8 @@
 import { useAuth } from '@/src/auth/useAuth'
 import { Ionicons } from '@expo/vector-icons'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
+	Dimensions,
 	FlatList,
 	ScrollView,
 	StyleSheet,
@@ -87,20 +88,64 @@ const MONTHS = [
 export default function HistoryTab() {
 	const { isSubscribed } = useAuth()
 	const [selectedFilter, setSelectedFilter] = useState('all')
+	const [monthDays, setMonthDays] = useState<any[]>([])
 	const [stats, setStats] = useState({
-		totalWorkouts: 24,
-		totalVolume: 52400,
 		streak: 7,
-		favoriteExercise: 'Жим лежа',
 	})
 
-	const filters = [
-		{ id: 'all', label: 'Все' },
-		{ id: 'week', label: 'Неделя' },
-		{ id: 'month', label: 'Месяц' },
-		{ id: 'chest', label: 'Грудь' },
-		{ id: 'legs', label: 'Ноги' },
-	]
+	// Получаем все уникальные группы мышц из истории тренировок
+	const getAllMuscleGroups = () => {
+		const groups = new Set<string>()
+		WORKOUT_HISTORY.forEach(workout => {
+			workout.muscleGroups.forEach(group => groups.add(group))
+		})
+		return Array.from(groups)
+	}
+
+	const muscleGroups = ['all', ...getAllMuscleGroups()]
+
+	// Фильтруем тренировки по выбранной группе мышц
+	const filteredWorkouts = WORKOUT_HISTORY.filter(workout => {
+		if (selectedFilter === 'all') return true
+		return workout.muscleGroups.includes(selectedFilter)
+	})
+
+	// Генерируем календарь на текущий месяц
+	const generateMonthCalendar = () => {
+		const today = new Date()
+		const year = today.getFullYear()
+		const month = today.getMonth()
+
+		// Первый день месяца
+		const firstDay = new Date(year, month, 1)
+		// Последний день месяца
+		const lastDay = new Date(year, month + 1, 0)
+
+		// Количество дней в месяце
+		const daysInMonth = lastDay.getDate()
+
+		// День недели первого дня (0 - воскресенье, 1 - понедельник и т.д.)
+		const firstDayOfWeek = firstDay.getDay()
+
+		const days = []
+
+		// Добавляем пустые ячейки для дней предыдущего месяца
+		for (let i = 0; i < firstDayOfWeek; i++) {
+			days.push({ day: null, hasWorkout: false })
+		}
+
+		// Добавляем дни текущего месяца
+		for (let day = 1; day <= daysInMonth; day++) {
+			const hasWorkout = Math.random() > 0.6 // Моковые данные
+			days.push({ day, hasWorkout })
+		}
+
+		return days
+	}
+
+	useEffect(() => {
+		setMonthDays(generateMonthCalendar())
+	}, [])
 
 	const renderWorkoutCard = ({ item }: { item: any }) => (
 		<TouchableOpacity style={styles.workoutCard}>
@@ -124,127 +169,136 @@ export default function HistoryTab() {
 
 			<View style={styles.workoutStats}>
 				<View style={styles.statItem}>
-					<Ionicons name='barbell' size={16} color='#666' />
+					<Ionicons name='barbell' size={16} color='#8E8E93' />
 					<Text style={styles.statText}>{item.exercises} упр.</Text>
 				</View>
 				<View style={styles.statItem}>
-					<Ionicons name='repeat' size={16} color='#666' />
+					<Ionicons name='repeat' size={16} color='#8E8E93' />
 					<Text style={styles.statText}>{item.sets} подх.</Text>
 				</View>
 				<View style={styles.statItem}>
-					<Ionicons name='time' size={16} color='#666' />
+					<Ionicons name='time' size={16} color='#8E8E93' />
 					<Text style={styles.statText}>{item.duration}</Text>
 				</View>
 				<View style={styles.statItem}>
-					<Ionicons name='trending-up' size={16} color='#666' />
+					<Ionicons name='trending-up' size={16} color='#8E8E93' />
 					<Text style={styles.statText}>{item.volume} кг</Text>
 				</View>
 			</View>
 		</TouchableOpacity>
 	)
 
-	const renderCalendar = () => {
-		const today = new Date()
-		const days = []
-
-		for (let i = 6; i >= 0; i--) {
-			const date = new Date(today)
-			date.setDate(today.getDate() - i)
-
-			const hasWorkout = Math.random() > 0.3 // Моковые данные
-
-			days.push(
-				<View key={i} style={styles.calendarDay}>
-					<Text style={styles.dayName}>
-						{['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][date.getDay()]}
-					</Text>
-					<View
-						style={[styles.dayCircle, hasWorkout && styles.dayCircleActive]}
-					>
-						<Text
-							style={[styles.dayNumber, hasWorkout && styles.dayNumberActive]}
-						>
-							{date.getDate()}
-						</Text>
-					</View>
-					{hasWorkout && <View style={styles.dayDot} />}
-				</View>
-			)
-		}
-
-		return days
+	const getFilterLabel = (filter: string) => {
+		if (filter === 'all') return 'Все мышцы'
+		return filter
 	}
 
 	return (
 		<SafeAreaView style={styles.container}>
-			<ScrollView>
+			<ScrollView showsVerticalScrollIndicator={false}>
 				<View style={styles.header}>
 					<View>
 						<Text style={styles.title}>История тренировок</Text>
 						<Text style={styles.subtitle}>Отслеживайте ваш прогресс</Text>
 					</View>
-					<TouchableOpacity style={styles.exportButton}>
-						<Ionicons name='download' size={24} color='#007AFF' />
-					</TouchableOpacity>
 				</View>
 
+				{/* Статистика - только дней подряд */}
 				<View style={styles.statsOverview}>
-					<View style={styles.statCard}>
-						<Text style={styles.statNumber}>{stats.totalWorkouts}</Text>
-						<Text style={styles.statLabel}>Тренировок</Text>
-					</View>
-					<View style={styles.statCard}>
-						<Text style={styles.statNumber}>
-							{stats.totalVolume.toLocaleString()}
-						</Text>
-						<Text style={styles.statLabel}>Общий объем, кг</Text>
-					</View>
-					<View style={styles.statCard}>
-						<Text style={styles.statNumber}>{stats.streak}</Text>
-						<Text style={styles.statLabel}>Дней подряд</Text>
-					</View>
-					<View style={styles.statCard}>
-						<Text style={[styles.statNumber, { fontSize: 16 }]}>
-							{stats.favoriteExercise}
-						</Text>
-						<Text style={styles.statLabel}>Любимое упражнение</Text>
+					<View style={styles.streakCard}>
+						<View style={styles.streakIconContainer}>
+							<Ionicons name='flame' size={32} color='#FF9500' />
+						</View>
+						<View>
+							<Text style={styles.streakNumber}>{stats.streak}</Text>
+							<Text style={styles.streakLabel}>Дней подряд</Text>
+						</View>
 					</View>
 				</View>
 
+				{/* Фильтры по мышцам */}
 				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Активность</Text>
-					<View style={styles.calendar}>{renderCalendar()}</View>
-				</View>
-
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Фильтры</Text>
+					<View style={styles.sectionHeader}>
+						<Text style={styles.sectionTitle}>Фильтровать по мышцам</Text>
+					</View>
 					<ScrollView
 						horizontal
 						showsHorizontalScrollIndicator={false}
 						style={styles.filtersContainer}
 					>
-						{filters.map(filter => (
+						{muscleGroups.map(muscle => (
 							<TouchableOpacity
-								key={filter.id}
+								key={muscle}
 								style={[
 									styles.filterButton,
-									selectedFilter === filter.id && styles.filterButtonActive,
+									selectedFilter === muscle && styles.filterButtonActive,
 								]}
-								onPress={() => setSelectedFilter(filter.id)}
+								onPress={() => setSelectedFilter(muscle)}
 							>
 								<Text
 									style={[
 										styles.filterText,
-										selectedFilter === filter.id && styles.filterTextActive,
+										selectedFilter === muscle && styles.filterTextActive,
 									]}
 								>
-									{filter.label}
+									{getFilterLabel(muscle)}
 								</Text>
 							</TouchableOpacity>
 						))}
 					</ScrollView>
 				</View>
 
+				{/* Активность - календарь на месяц */}
+				<View style={styles.section}>
+					<View style={styles.sectionHeader}>
+						<Text style={styles.sectionTitle}>Активность за месяц</Text>
+						<Text style={styles.monthLabel}>
+							{MONTHS[new Date().getMonth()]} {new Date().getFullYear()}
+						</Text>
+					</View>
+					<View style={styles.calendar}>
+						{/* Дни недели */}
+						<View style={styles.weekDays}>
+							{['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => (
+								<Text key={day} style={styles.weekDay}>
+									{day}
+								</Text>
+							))}
+						</View>
+
+						{/* Дни месяца */}
+						<View style={styles.monthDays}>
+							{monthDays.map((dayData, index) => (
+								<View key={index} style={styles.calendarDay}>
+									{dayData.day ? (
+										<>
+											<View
+												style={[
+													styles.dayCircle,
+													dayData.hasWorkout && styles.dayCircleActive,
+												]}
+											>
+												<Text
+													style={[
+														styles.dayNumber,
+														dayData.hasWorkout && styles.dayNumberActive,
+													]}
+												>
+													{dayData.day}
+												</Text>
+											</View>
+											{dayData.hasWorkout && <View style={styles.dayDot} />}
+										</>
+									) : (
+										<View style={styles.emptyDay} />
+									)}
+								</View>
+							))}
+						</View>
+					</View>
+				</View>
+
+				{/* Список тренировок */}
 				<View style={styles.section}>
 					<View style={styles.sectionHeader}>
 						<Text style={styles.sectionTitle}>Последние тренировки</Text>
@@ -253,64 +307,25 @@ export default function HistoryTab() {
 						</TouchableOpacity>
 					</View>
 					<FlatList
-						data={WORKOUT_HISTORY}
+						data={filteredWorkouts}
 						renderItem={renderWorkoutCard}
 						keyExtractor={item => item.id}
 						scrollEnabled={false}
 						contentContainerStyle={styles.workoutList}
 					/>
 				</View>
-
-				{!isSubscribed && (
-					<TouchableOpacity style={styles.premiumCard}>
-						<View style={styles.premiumContent}>
-							<Ionicons name='stats-chart' size={32} color='#FF9500' />
-							<View style={styles.premiumText}>
-								<Text style={styles.premiumTitle}>Расширенная статистика</Text>
-								<Text style={styles.premiumDescription}>
-									Откройте детальную аналитику с подпиской Premium
-								</Text>
-							</View>
-						</View>
-						<Ionicons name='chevron-forward' size={24} color='#8E8E93' />
-					</TouchableOpacity>
-				)}
-
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Прогресс по упражнениям</Text>
-					<View style={styles.exerciseProgress}>
-						<View style={styles.progressItem}>
-							<Text style={styles.exerciseName}>Жим лежа</Text>
-							<View style={styles.progressBar}>
-								<View style={[styles.progressFill, { width: '85%' }]} />
-							</View>
-							<Text style={styles.progressText}>+15 кг за месяц</Text>
-						</View>
-						<View style={styles.progressItem}>
-							<Text style={styles.exerciseName}>Приседания</Text>
-							<View style={styles.progressBar}>
-								<View style={[styles.progressFill, { width: '70%' }]} />
-							</View>
-							<Text style={styles.progressText}>+10 кг за месяц</Text>
-						</View>
-						<View style={styles.progressItem}>
-							<Text style={styles.exerciseName}>Тяга в наклоне</Text>
-							<View style={styles.progressBar}>
-								<View style={[styles.progressFill, { width: '65%' }]} />
-							</View>
-							<Text style={styles.progressText}>+8 кг за месяц</Text>
-						</View>
-					</View>
-				</View>
 			</ScrollView>
 		</SafeAreaView>
 	)
 }
 
+const { width } = Dimensions.get('window')
+const DAY_SIZE = (width - 80) / 7
+
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: '#f5f5f5',
+		backgroundColor: '#0A0A0A',
 	},
 	header: {
 		flexDirection: 'row',
@@ -323,37 +338,53 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 24,
 		fontWeight: 'bold',
-		color: '#1a1a1a',
+		color: '#FFFFFF',
 	},
 	subtitle: {
 		fontSize: 16,
-		color: '#666',
+		color: '#8E8E93',
 		marginTop: 4,
 	},
 	exportButton: {
 		padding: 8,
 	},
 	statsOverview: {
+		paddingHorizontal: 20,
+		marginTop: 20,
+	},
+	streakCard: {
+		backgroundColor: '#1C1C1E',
+		borderRadius: 20,
+		padding: 20,
 		flexDirection: 'row',
-		flexWrap: 'wrap',
-		paddingHorizontal: 10,
-		marginTop: 10,
-	},
-	statCard: {
-		width: '50%',
-		padding: 16,
 		alignItems: 'center',
+		borderWidth: 2,
+		borderColor: '#FF9500',
+		shadowColor: '#FF9500',
+		shadowOffset: { width: 0, height: 0 },
+		shadowOpacity: 0.3,
+		shadowRadius: 10,
+		elevation: 10,
 	},
-	statNumber: {
-		fontSize: 24,
+	streakIconContainer: {
+		width: 56,
+		height: 56,
+		borderRadius: 28,
+		backgroundColor: 'rgba(255, 149, 0, 0.1)',
+		justifyContent: 'center',
+		alignItems: 'center',
+		marginRight: 16,
+	},
+	streakNumber: {
+		fontSize: 36,
 		fontWeight: 'bold',
-		color: '#007AFF',
-		marginBottom: 4,
+		color: '#FF9500',
+		marginBottom: 2,
 	},
-	statLabel: {
-		fontSize: 12,
-		color: '#666',
-		textAlign: 'center',
+	streakLabel: {
+		fontSize: 14,
+		color: '#8E8E93',
+		fontWeight: '500',
 	},
 	section: {
 		marginTop: 24,
@@ -363,56 +394,71 @@ const styles = StyleSheet.create({
 		justifyContent: 'space-between',
 		alignItems: 'center',
 		paddingHorizontal: 20,
-		marginBottom: 12,
+		marginBottom: 16,
 	},
 	sectionTitle: {
 		fontSize: 18,
 		fontWeight: '600',
-		color: '#1a1a1a',
-		marginLeft: 20,
-		marginBottom: 12,
+		color: '#FFFFFF',
+	},
+	monthLabel: {
+		fontSize: 14,
+		color: '#8E8E93',
+		fontWeight: '500',
 	},
 	seeAll: {
 		fontSize: 14,
-		color: '#007AFF',
+		color: '#00ff1eff',
 		fontWeight: '600',
-		marginRight: 20,
 	},
 	calendar: {
-		flexDirection: 'row',
-		justifyContent: 'space-around',
-		backgroundColor: '#fff',
+		backgroundColor: '#1C1C1E',
 		marginHorizontal: 20,
-		borderRadius: 16,
-		paddingVertical: 16,
+		borderRadius: 20,
+		padding: 16,
 	},
-	calendarDay: {
-		alignItems: 'center',
+	weekDays: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		marginBottom: 12,
 	},
-	dayName: {
+	weekDay: {
+		width: DAY_SIZE,
+		textAlign: 'center',
 		fontSize: 12,
 		color: '#8E8E93',
-		marginBottom: 8,
+		fontWeight: '500',
+	},
+	monthDays: {
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+	},
+	calendarDay: {
+		width: DAY_SIZE,
+		height: DAY_SIZE + 10,
+		alignItems: 'center',
+		justifyContent: 'center',
+		marginBottom: 4,
 	},
 	dayCircle: {
-		width: 36,
-		height: 36,
-		borderRadius: 18,
-		backgroundColor: '#f5f5f5',
+		width: 32,
+		height: 32,
+		borderRadius: 16,
+		backgroundColor: '#2C2C2E',
 		justifyContent: 'center',
 		alignItems: 'center',
 		marginBottom: 4,
 	},
 	dayCircleActive: {
-		backgroundColor: '#007AFF',
+		backgroundColor: '#3fb55aff',
 	},
 	dayNumber: {
 		fontSize: 14,
 		fontWeight: '600',
-		color: '#666',
+		color: '#8E8E93',
 	},
 	dayNumberActive: {
-		color: '#fff',
+		color: '#FFFFFF',
 	},
 	dayDot: {
 		width: 4,
@@ -420,44 +466,43 @@ const styles = StyleSheet.create({
 		borderRadius: 2,
 		backgroundColor: '#34C759',
 	},
+	emptyDay: {
+		width: 32,
+		height: 32,
+	},
 	filtersContainer: {
 		paddingLeft: 20,
 		paddingRight: 10,
 	},
 	filterButton: {
 		paddingHorizontal: 16,
-		paddingVertical: 8,
-		backgroundColor: '#fff',
+		paddingVertical: 10,
+		backgroundColor: '#1C1C1E',
 		borderRadius: 20,
 		marginRight: 8,
 		borderWidth: 1,
-		borderColor: '#e5e5ea',
+		borderColor: '#2C2C2E',
 	},
 	filterButtonActive: {
-		backgroundColor: '#007AFF',
-		borderColor: '#007AFF',
+		backgroundColor: '#00ff2aff',
+		borderColor: '#00ff2fff',
 	},
 	filterText: {
 		fontSize: 14,
-		color: '#666',
+		color: '#8E8E93',
 		fontWeight: '500',
 	},
 	filterTextActive: {
-		color: '#fff',
+		color: '#FFFFFF',
 	},
 	workoutList: {
 		paddingHorizontal: 20,
 	},
 	workoutCard: {
-		backgroundColor: '#fff',
+		backgroundColor: '#1C1C1E',
 		borderRadius: 16,
 		padding: 16,
 		marginBottom: 12,
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.1,
-		shadowRadius: 4,
-		elevation: 3,
 	},
 	workoutHeader: {
 		flexDirection: 'row',
@@ -468,7 +513,7 @@ const styles = StyleSheet.create({
 	workoutDate: {
 		fontSize: 16,
 		fontWeight: 'bold',
-		color: '#1a1a1a',
+		color: '#FFFFFF',
 	},
 	workoutTime: {
 		fontSize: 14,
@@ -476,7 +521,7 @@ const styles = StyleSheet.create({
 		marginTop: 2,
 	},
 	workoutTypeBadge: {
-		backgroundColor: '#E3F2FD',
+		backgroundColor: 'rgba(0, 255, 72, 0.2)',
 		paddingHorizontal: 12,
 		paddingVertical: 6,
 		borderRadius: 12,
@@ -484,7 +529,7 @@ const styles = StyleSheet.create({
 	workoutTypeText: {
 		fontSize: 12,
 		fontWeight: '600',
-		color: '#007AFF',
+		color: '#00ff3cff',
 	},
 	muscleGroups: {
 		flexDirection: 'row',
@@ -492,7 +537,7 @@ const styles = StyleSheet.create({
 		marginBottom: 12,
 	},
 	muscleTag: {
-		backgroundColor: '#f5f5f5',
+		backgroundColor: '#2C2C2E',
 		paddingHorizontal: 10,
 		paddingVertical: 4,
 		borderRadius: 12,
@@ -501,11 +546,14 @@ const styles = StyleSheet.create({
 	},
 	muscleTagText: {
 		fontSize: 12,
-		color: '#666',
+		color: '#8E8E93',
 	},
 	workoutStats: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',
+		borderTopWidth: 1,
+		borderTopColor: '#2C2C2E',
+		paddingTop: 12,
 	},
 	statItem: {
 		flexDirection: 'row',
@@ -513,67 +561,7 @@ const styles = StyleSheet.create({
 	},
 	statText: {
 		fontSize: 12,
-		color: '#666',
+		color: '#8E8E93',
 		marginLeft: 4,
-	},
-	premiumCard: {
-		backgroundColor: '#fff',
-		marginHorizontal: 20,
-		marginTop: 20,
-		borderRadius: 16,
-		padding: 16,
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-		borderWidth: 1,
-		borderColor: '#FF9500',
-	},
-	premiumContent: {
-		flexDirection: 'row',
-		alignItems: 'center',
-	},
-	premiumText: {
-		marginLeft: 12,
-	},
-	premiumTitle: {
-		fontSize: 16,
-		fontWeight: 'bold',
-		color: '#1a1a1a',
-		marginBottom: 4,
-	},
-	premiumDescription: {
-		fontSize: 14,
-		color: '#666',
-	},
-	exerciseProgress: {
-		backgroundColor: '#fff',
-		marginHorizontal: 20,
-		borderRadius: 16,
-		padding: 16,
-	},
-	progressItem: {
-		marginBottom: 16,
-	},
-	exerciseName: {
-		fontSize: 16,
-		fontWeight: '600',
-		color: '#1a1a1a',
-		marginBottom: 8,
-	},
-	progressBar: {
-		height: 8,
-		backgroundColor: '#e5e5ea',
-		borderRadius: 4,
-		marginBottom: 4,
-		overflow: 'hidden',
-	},
-	progressFill: {
-		height: '100%',
-		backgroundColor: '#34C759',
-		borderRadius: 4,
-	},
-	progressText: {
-		fontSize: 12,
-		color: '#666',
 	},
 })
