@@ -1,4 +1,3 @@
-import { AuthProvider } from '@/src/auth/AuthContext'
 import { ThemeProvider, useTheme } from '@/src/theme/ThemeContex'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
@@ -36,9 +35,7 @@ export default function RootLayout() {
 	return (
 		<SafeAreaProvider>
 			<ThemeProvider>
-				<AuthProvider>
 					<RootLayoutContent />
-				</AuthProvider>
 			</ThemeProvider>
 		</SafeAreaProvider>
 	)

@@ -1,12 +1,10 @@
-import { useAuth } from '@/src/auth/useAuth'
 import { useAppStyles } from '@/src/theme/use-app-styles'
 import { useRouter } from 'expo-router'
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Image, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 export default function PublicHome() {
 	const router = useRouter()
-	const { signInWithGoogle } = useAuth()
 	const { styles: appStyles, colors } = useAppStyles()
 
 	return (
@@ -38,7 +36,7 @@ export default function PublicHome() {
 				</View>
 
 				<View style={styles.buttons}>
-					<TouchableOpacity
+					{/* <TouchableOpacity
 						style={appStyles.buttonPrimary}
 						onPress={signInWithGoogle}
 					>
@@ -50,7 +48,7 @@ export default function PublicHome() {
 						onPress={() => router.push('/(public)/subscription')}
 					>
 						<Text style={appStyles.buttonSecondaryText}>О подписке</Text>
-					</TouchableOpacity>
+					</TouchableOpacity> */}
 				</View>
 			</View>
 		</SafeAreaView>

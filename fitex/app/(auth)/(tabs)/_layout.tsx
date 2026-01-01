@@ -1,12 +1,20 @@
 // app/(tabs)/_layout.tsx
 import { Ionicons, MaterialIcons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Tabs } from 'expo-router'
-import { Platform, View } from 'react-native'
+import { Tabs, useRouter } from 'expo-router'
+import { Platform, TouchableOpacity, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 export default function TabsLayout() {
 	const { bottom } = useSafeAreaInsets()
+	const router = useRouter()
+
+	const handleStartWorkout = () => {
+		// Генерируем ID для новой тренировки
+		const workoutId = 'quick-' + Date.now()
+		// Переходим сразу на страницу тренировки
+		router.push(`/workout/${workoutId}`)
+	}
 
 	return (
 		<Tabs
@@ -15,20 +23,18 @@ export default function TabsLayout() {
 				tabBarActiveTintColor: '#34C759',
 				tabBarInactiveTintColor: '#8E8E93',
 
-				// Убираем position: 'absolute' — теперь таббар занимает место в layout
 				tabBarStyle: {
 					borderTopWidth: 0,
-					elevation: 0, // Android тень
-					shadowOpacity: 0, // iOS тень
-					height: 70 + bottom, // Учитываем safe area снизу
+					elevation: 0,
+					shadowOpacity: 0,
+					height: 70 + bottom,
 					paddingBottom: bottom + 8,
 					paddingTop: 8,
-					// Важно: не указываем position, bottom, left, right
+					position: 'relative',
 				},
 
-				// Полупрозрачный градиентный фон таббара
 				tabBarBackground: () => (
-					<View style={{ flex: 1, overflow: 'hidden' }}>
+					<View style={{ flex: 1 }}>
 						<LinearGradient
 							colors={['rgba(0,0,0,0.95)', 'rgba(0,0,0,0.85)']}
 							start={{ x: 0, y: 0 }}
@@ -73,6 +79,46 @@ export default function TabsLayout() {
 					title: 'Восстановление',
 					tabBarIcon: ({ color, size }) => (
 						<Ionicons name='heart-outline' size={size} color={color} />
+					),
+				}}
+			/>
+
+			{/* Центральная большая кнопка "Старт" */}
+			<Tabs.Screen
+				name='start-workout'
+				options={{
+					title: 'Старт',
+					tabBarShowLabel: false,
+					tabBarButton: props => (
+						<View
+							style={{
+								flex: 1,
+								alignItems: 'center',
+								justifyContent: 'center',
+							}}
+						>
+							<TouchableOpacity
+								onPress={handleStartWorkout}
+								style={{
+									top: -25,
+									width: 70,
+									height: 70,
+									borderRadius: 35,
+									backgroundColor: '#34C759',
+									alignItems: 'center',
+									justifyContent: 'center',
+									shadowColor: '#34C759',
+									shadowOffset: { width: 0, height: 4 },
+									shadowOpacity: 0.3,
+									shadowRadius: 8,
+									elevation: 8,
+									borderWidth: 3,
+									borderColor: 'rgba(255,255,255,0.1)',
+								}}
+							>
+								<Ionicons name='play' size={30} color='white' />
+							</TouchableOpacity>
+						</View>
 					),
 				}}
 			/>

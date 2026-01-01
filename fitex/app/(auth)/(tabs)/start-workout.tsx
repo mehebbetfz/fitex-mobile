@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
 	Alert,
+	Image,
 	ScrollView,
 	StyleSheet,
 	Switch,
@@ -195,6 +196,37 @@ export default function ProfileTab() {
 			style={[styles.container, { backgroundColor: colors.background }]}
 		>
 			<ScrollView>
+				<View style={[styles.header, { backgroundColor: colors.surface }]}>
+					<TouchableOpacity onPress={handleEditProfile}>
+						<Image
+							source={{
+								uri: user.avatar,
+							}}
+							style={styles.avatar}
+						/>
+					</TouchableOpacity>
+
+					<View style={styles.userInfo}>
+						<Text style={[styles.userName, { color: colors.textPrimary }]}>
+							{user.firstName} {user.lastName}
+						</Text>
+						<Text style={[styles.userEmail, { color: colors.textSecondary }]}>
+							{user.email}
+						</Text>
+
+						<View style={styles.subscriptionStatus}>
+							<View
+								style={[styles.statusDot, { backgroundColor: colors.success }]}
+							/>
+							<Text
+								style={[styles.statusText, { color: colors.textSecondary }]}
+							>
+								Локальный профиль
+							</Text>
+						</View>
+					</View>
+				</View>
+
 				<View style={[styles.statsCard, { backgroundColor: colors.surface }]}>
 					<View style={styles.statItem}>
 						<Text style={[styles.statNumber, { color: colors.accentGreen }]}>

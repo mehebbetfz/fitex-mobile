@@ -1,4 +1,3 @@
-import { useAuth } from '@/src/auth/useAuth'
 import { Ionicons } from '@expo/vector-icons'
 import { useEffect, useState } from 'react'
 import {
@@ -86,7 +85,6 @@ const MONTHS = [
 ]
 
 export default function HistoryTab() {
-	const { isSubscribed } = useAuth()
 	const [selectedFilter, setSelectedFilter] = useState('all')
 	const [monthDays, setMonthDays] = useState<any[]>([])
 	const [stats, setStats] = useState({
@@ -325,7 +323,7 @@ const DAY_SIZE = (width - 80) / 7
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: '#0A0A0A',
+		backgroundColor: '#121212',
 	},
 	header: {
 		flexDirection: 'row',
