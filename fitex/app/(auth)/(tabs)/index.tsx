@@ -119,27 +119,11 @@ const PROGRESS_STATS: ProgressStat[] = [
 		trend: 'positive',
 	},
 	{
-		id: '2',
-		title: 'Жир',
-		value: '18.5%',
-		subtitle: '-4.0% за 6 мес',
-		icon: 'water',
-		trend: 'positive',
-	},
-	{
 		id: '3',
 		title: 'Мышцы',
 		value: '+4.1 кг',
 		subtitle: 'прирост массы',
 		icon: 'fitness',
-		trend: 'positive',
-	},
-	{
-		id: '4',
-		title: 'ИМТ',
-		value: '23.4',
-		subtitle: 'нормальный вес',
-		icon: 'analytics',
 		trend: 'positive',
 	},
 	{
@@ -457,22 +441,6 @@ export default function StatisticsTab() {
 							<TouchableOpacity
 								style={[
 									styles.metricButton,
-									selectedMetric === 'fat' && styles.activeMetricButton,
-								]}
-								onPress={() => setSelectedMetric('fat')}
-							>
-								<Text
-									style={[
-										styles.metricText,
-										selectedMetric === 'fat' && styles.activeMetricText,
-									]}
-								>
-									Жир
-								</Text>
-							</TouchableOpacity>
-							<TouchableOpacity
-								style={[
-									styles.metricButton,
 									selectedMetric === 'muscle' && styles.activeMetricButton,
 								]}
 								onPress={() => setSelectedMetric('muscle')}
@@ -645,42 +613,6 @@ export default function StatisticsTab() {
 						))}
 					</View>
 				</View>
-
-				{/* История тренировок */}
-				<View style={{ ...styles.section, marginBottom: 10 }}>
-					<View style={styles.sectionHeader}>
-						<Text style={styles.sectionTitle}>История тренировок</Text>
-						<TouchableOpacity
-							onPress={() => router.push('/(auth)/workout/history')}
-						>
-							<Text style={styles.seeAll}>Полная история</Text>
-						</TouchableOpacity>
-					</View>
-					<View style={styles.workoutHistory}>
-						{WORKOUT_HISTORY.map(workout => (
-							<View key={workout.id} style={styles.workoutItem}>
-								<View style={styles.workoutInfo}>
-									<Text style={styles.workoutDate}>{workout.date}</Text>
-									<Text style={styles.workoutType}>{workout.type}</Text>
-								</View>
-								<View style={styles.workoutStats}>
-									<View style={styles.workoutStat}>
-										<Text style={styles.workoutStatValue}>
-											{workout.duration}
-										</Text>
-										<Text style={styles.workoutStatLabel}>длительность</Text>
-									</View>
-									<View style={styles.workoutStat}>
-										<Text style={styles.workoutStatValue}>
-											{workout.calories}
-										</Text>
-										<Text style={styles.workoutStatLabel}>ккал</Text>
-									</View>
-								</View>
-							</View>
-						))}
-					</View>
-				</View>
 			</ScrollView>
 		</SafeAreaView>
 	)
@@ -832,7 +764,7 @@ const styles = StyleSheet.create({
 		paddingRight: 20,
 	},
 	statCard: {
-		width: 160,
+		width: 180,
 		backgroundColor: '#1E1E1E',
 		borderRadius: 16,
 		padding: 16,

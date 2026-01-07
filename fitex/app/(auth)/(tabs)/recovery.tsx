@@ -1,5 +1,7 @@
-import { manFrontMuscleParts } from '@/constants/images'
-import { Ionicons } from '@expo/vector-icons'
+import {
+	manFrontMuscleGroupParts,
+	manFrontMuscleParts,
+} from '@/constants/images'
 import { useRef, useState } from 'react'
 import {
 	Animated,
@@ -32,6 +34,7 @@ const MUSCLE_DATA = [
 			'rightSerratusAnterior',
 			'leftSerratusAnterior',
 		],
+		icon: manFrontMuscleGroupParts.rectoralFull,
 	},
 	{
 		id: '2',
@@ -52,6 +55,7 @@ const MUSCLE_DATA = [
 			'leftTransversusAbdominis',
 			'rightTransversusAbdominis',
 		],
+		icon: manFrontMuscleGroupParts.pressFull,
 	},
 	{
 		id: '3',
@@ -66,6 +70,7 @@ const MUSCLE_DATA = [
 			'leftShortBiceps',
 			'rightShortBiceps',
 		],
+		icon: manFrontMuscleGroupParts.bicepsFull,
 	},
 	{
 		id: '4',
@@ -79,9 +84,8 @@ const MUSCLE_DATA = [
 			'rightFrontDeltoid',
 			'leftMiddleDeltoid',
 			'rightMiddleDeltoid',
-			'leftUpperTrapezius',
-			'rightUpperTrapezius',
 		],
+		icon: manFrontMuscleGroupParts.gastrocnemius,
 	},
 	{
 		id: '5',
@@ -90,7 +94,8 @@ const MUSCLE_DATA = [
 		recovery: 100,
 		color: '#96CEB4',
 		lastTrained: '5 дней назад',
-		muscleImages: ['rightScalenes', 'leftScalenes'],
+		muscleImages: ['leftUpperTrapezius', 'rightUpperTrapezius'],
+		icon: manFrontMuscleGroupParts.rectoralFull,
 	},
 	{
 		id: '6',
@@ -113,6 +118,7 @@ const MUSCLE_DATA = [
 			'rightGluteusMedius',
 			'leftGluteusMedius',
 		],
+		icon: manFrontMuscleGroupParts.upperLegFull,
 	},
 	{
 		id: '7',
@@ -129,6 +135,7 @@ const MUSCLE_DATA = [
 			'rightExtensorCarpiRadialis',
 			'leftExtensorCarpiRadialis',
 		],
+		icon: manFrontMuscleGroupParts.forearmFull,
 	},
 ]
 
@@ -181,12 +188,6 @@ export default function RecoveryTab() {
 
 	const handleMuscleSelect = (muscleId: string) => {
 		setSelectedMuscle(selectedMuscle === muscleId ? null : muscleId)
-		if (activeTab !== 'list') {
-			setActiveTab('list')
-			setTimeout(() => {
-				flatListRef.current?.scrollToOffset({ offset: width, animated: true })
-			}, 100)
-		}
 	}
 
 	const getMuscleImagesToShow = () => {
@@ -254,6 +255,57 @@ export default function RecoveryTab() {
 					))}
 				</View>
 
+				<View style={{ width: width - 40 }}>
+					<FlatList
+						data={MUSCLE_DATA}
+						keyExtractor={item => item.id.toString()}
+						numColumns={2} // или 3, если хочешь больше колонок
+						contentContainerStyle={styles.gridContainer}
+						renderItem={({ item: muscle }) => (
+							<TouchableOpacity
+								style={[
+									styles.muscleItemGrid,
+									selectedMuscle === muscle.id && styles.selectedMuscleItemGrid,
+								]}
+								onPress={() => handleMuscleSelect(muscle.id)}
+							>
+								<View style={styles.muscleInfo}>
+									<View style={[styles.muscleIcon]}>
+										<Image
+											style={styles.bodyBackground}
+											source={muscle.icon}
+											resizeMode='contain'
+										/>
+									</View>
+
+									<View style={styles.muscleTextContainer}>
+										<Text style={styles.muscleName} numberOfLines={1}>
+											{muscle.name}
+										</Text>
+										<Text style={styles.lastTrained} numberOfLines={1}>
+											{muscle.lastTrained}
+										</Text>
+									</View>
+								</View>
+
+								<View style={styles.muscleStatus}>
+									<View style={styles.recoveryBar}>
+										<View
+											style={[
+												styles.recoveryFill,
+												{
+													width: `${muscle.recovery}%`,
+													backgroundColor: getStatusColor(muscle.status),
+												},
+											]}
+										/>
+									</View>
+								</View>
+							</TouchableOpacity>
+						)}
+					/>
+				</View>
+
 				<View style={styles.legend}>
 					<View style={styles.legendItem}>
 						<View
@@ -261,7 +313,7 @@ export default function RecoveryTab() {
 						/>
 						<Text style={styles.legendText}>Восстановлено</Text>
 					</View>
-					<View style={styles.legendItem}>
+					<View style={{ ...styles.legendItem, marginHorizontal: 2 }}>
 						<View
 							style={[styles.legendColor, { backgroundColor: '#FFCC00' }]}
 						/>
@@ -287,73 +339,7 @@ export default function RecoveryTab() {
 		</View>
 	)
 
-	const renderListTab = () => (
-		<View style={styles.tabContainer}>
-			<View style={styles.musclesListContainer}>
-				<Text style={styles.listTitle}>Детали по мышцам</Text>
-				<ScrollView
-					style={styles.musclesScrollView}
-					showsVerticalScrollIndicator={false}
-					contentContainerStyle={{ flexGrow: 1 }}
-				>
-					{MUSCLE_DATA.map(muscle => (
-						<TouchableOpacity
-							key={muscle.id}
-							style={[
-								styles.muscleItem,
-								selectedMuscle === muscle.id && styles.selectedMuscleItem,
-							]}
-							onPress={() => handleMuscleSelect(muscle.id)}
-						>
-							<View style={styles.muscleInfo}>
-								<View
-									style={[styles.muscleIcon, { backgroundColor: muscle.color }]}
-								>
-									<Text style={styles.muscleIconText}>
-										{muscle.name.charAt(0)}
-									</Text>
-								</View>
-								<View style={styles.muscleTextContainer}>
-									<Text style={styles.muscleName}>{muscle.name}</Text>
-									<Text style={styles.lastTrained}>{muscle.lastTrained}</Text>
-								</View>
-							</View>
-
-							<View style={styles.muscleStatus}>
-								<View style={styles.recoveryBar}>
-									<View
-										style={[
-											styles.recoveryFill,
-											{
-												width: `${muscle.recovery}%`,
-												backgroundColor: getStatusColor(muscle.status),
-											},
-										]}
-									/>
-								</View>
-								<View style={styles.recoveryInfo}>
-									<Text style={styles.recoveryPercent}>{muscle.recovery}%</Text>
-									<Text
-										style={[
-											styles.statusText,
-											{ color: getStatusColor(muscle.status) },
-										]}
-									>
-										{getStatusText(muscle.status)}
-									</Text>
-								</View>
-							</View>
-						</TouchableOpacity>
-					))}
-				</ScrollView>
-			</View>
-		</View>
-	)
-
-	const data = [
-		{ id: 'model', component: renderModelTab() },
-		{ id: 'list', component: renderListTab() },
-	]
+	const data = [{ id: 'model', component: renderModelTab() }]
 
 	const renderItem = ({ item }: { item: any }) => (
 		<View style={{ marginHorizontal: 1 }}>{item.component}</View>
@@ -369,73 +355,7 @@ export default function RecoveryTab() {
 					</View>
 				</View>
 
-				<View style={styles.overviewCard}>
-					<Text style={styles.overviewTitle}>
-						Общий прогресс восстановления
-					</Text>
-					<View style={styles.progressContainer}>
-						<View style={styles.progressCircle}>
-							<Text style={styles.progressText}>{overallRecovery}%</Text>
-						</View>
-						<View style={styles.overviewStats}>
-							<View style={styles.statRow}>
-								<View
-									style={[styles.statusDot, { backgroundColor: '#34C759' }]}
-								/>
-								<Text style={styles.statText}>Восстановлено: 2</Text>
-							</View>
-							<View style={styles.statRow}>
-								<View
-									style={[styles.statusDot, { backgroundColor: '#FFCC00' }]}
-								/>
-								<Text style={styles.statText}>Восстанавливается: 2</Text>
-							</View>
-							<View style={styles.statRow}>
-								<View
-									style={[styles.statusDot, { backgroundColor: '#FF3B30' }]}
-								/>
-								<Text style={styles.statText}>Требует отдыха: 1</Text>
-							</View>
-						</View>
-					</View>
-				</View>
-
 				<View style={styles.modelSection}>
-					<View style={styles.tabSelector}>
-						<TouchableOpacity
-							style={[
-								styles.tabButton,
-								activeTab === 'model' && styles.activeTabButton,
-							]}
-							onPress={() => handleTabSelect('model')}
-						>
-							<Text
-								style={[
-									styles.tabButtonText,
-									activeTab === 'model' && styles.activeTabButtonText,
-								]}
-							>
-								Модель тела
-							</Text>
-						</TouchableOpacity>
-						<TouchableOpacity
-							style={[
-								styles.tabButton,
-								activeTab === 'list' && styles.activeTabButton,
-							]}
-							onPress={() => handleTabSelect('list')}
-						>
-							<Text
-								style={[
-									styles.tabButtonText,
-									activeTab === 'list' && styles.activeTabButtonText,
-								]}
-							>
-								Список мышц
-							</Text>
-						</TouchableOpacity>
-					</View>
-
 					<FlatList
 						ref={flatListRef}
 						data={data}
@@ -474,42 +394,85 @@ export default function RecoveryTab() {
 						})}
 					</View>
 				</View>
-
-				<View style={{ ...styles.section, marginBottom: 10 }}>
-					<Text style={{ ...styles.sectionTitle, marginBottom: 20 }}>
-						Рекомендации
-					</Text>
-					<View style={styles.recommendationCard}>
-						<View style={styles.recommendationIcon}>
-							<Ionicons name='bulb' size={24} color='#FFCC00' />
-						</View>
-						<View style={styles.recommendationContent}>
-							<Text style={styles.recommendationTitle}>
-								Сегодня лучше всего
-							</Text>
-							<Text style={styles.recommendationText}>
-								Тренируйте пресс и плечи - они полностью восстановились
-							</Text>
-						</View>
-					</View>
-					<View style={styles.recommendationCard}>
-						<View style={styles.recommendationIcon}>
-							<Ionicons name='warning' size={24} color='#FF3B30' />
-						</View>
-						<View style={styles.recommendationContent}>
-							<Text style={styles.recommendationTitle}>Дайте отдых ногам</Text>
-							<Text style={styles.recommendationText}>
-								Ноги требуют еще 1-2 дня отдыха для полного восстановления
-							</Text>
-						</View>
-					</View>
-				</View>
 			</ScrollView>
 		</SafeAreaView>
 	)
 }
 
 const styles = StyleSheet.create({
+	gridContainer: {
+		padding: 10,
+	},
+
+	muscleItemGrid: {
+		flex: 1,
+		margin: 4,
+		padding: 12,
+		backgroundColor: '#1e1e1e',
+		borderRadius: 12,
+		borderWidth: 2,
+		borderColor: '#333',
+	},
+
+	selectedMuscleItemGrid: {
+		borderColor: '#00ff2aff', // или любой акцентный цвет
+		borderWidth: 2,
+	},
+
+	muscleInfo: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		marginBottom: 12,
+	},
+
+	muscleIcon: {
+		width: 60,
+		height: 60,
+		justifyContent: 'center',
+		alignItems: 'center',
+		marginRight: 12,
+		backgroundColor: '#333',
+		borderRadius: 10,
+	},
+
+	muscleIconText: {
+		color: '#fff',
+		fontSize: 18,
+		fontWeight: 'bold',
+	},
+
+	muscleTextContainer: {
+		flex: 1,
+		justifyContent: 'center',
+	},
+
+	muscleName: {
+		color: '#fff',
+		fontSize: 16,
+		fontWeight: '600',
+	},
+
+	lastTrained: {
+		color: '#888',
+		fontSize: 13,
+		marginTop: 2,
+	},
+
+	muscleStatus: {
+		marginTop: 8,
+	},
+
+	recoveryBar: {
+		height: 6,
+		backgroundColor: '#333',
+		borderRadius: 3,
+		overflow: 'hidden',
+	},
+
+	recoveryFill: {
+		height: '100%',
+		borderRadius: 3,
+	},
 	container: {
 		flex: 1,
 		backgroundColor: '#121212',
@@ -521,7 +484,6 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		paddingHorizontal: 20,
 		paddingTop: 20,
-		paddingBottom: 10,
 	},
 	title: {
 		fontSize: 24,
@@ -613,10 +575,10 @@ const styles = StyleSheet.create({
 		position: 'absolute',
 	},
 	legend: {
+		display: 'flex',
+		flexDirection: 'row',
 		justifyContent: 'space-around',
-		width: '100%',
 		marginTop: 20,
-		paddingHorizontal: 10,
 	},
 	legendItem: {
 		flexDirection: 'row',
@@ -633,7 +595,7 @@ const styles = StyleSheet.create({
 		marginRight: 6,
 	},
 	legendText: {
-		fontSize: 12,
+		fontSize: 10,
 		color: '#8E8E93',
 	},
 	toggleButton: {
@@ -728,60 +690,15 @@ const styles = StyleSheet.create({
 		borderRadius: 12,
 		padding: 12,
 		marginBottom: 8,
-		borderWidth: 1,
 		borderColor: '#3A3A3C',
+		borderWidth: 2,
 	},
 	selectedMuscleItem: {
 		borderColor: '#34C759',
 		borderWidth: 2,
 		backgroundColor: 'rgba(52, 199, 89, 0.1)',
 	},
-	muscleInfo: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		flex: 1,
-	},
-	muscleTextContainer: {
-		flex: 1,
-	},
-	muscleIcon: {
-		width: 36,
-		height: 36,
-		borderRadius: 18,
-		justifyContent: 'center',
-		alignItems: 'center',
-		marginRight: 12,
-	},
-	muscleIconText: {
-		color: '#FFFFFF',
-		fontSize: 16,
-		fontWeight: 'bold',
-	},
-	muscleName: {
-		fontSize: 15,
-		fontWeight: '600',
-		color: '#FFFFFF',
-	},
-	lastTrained: {
-		fontSize: 11,
-		color: '#8E8E93',
-		marginTop: 2,
-	},
-	muscleStatus: {
-		marginTop: 8,
-	},
-	recoveryBar: {
-		height: 6,
-		backgroundColor: '#1C1C1E',
-		borderRadius: 3,
-		marginBottom: 6,
-		overflow: 'hidden',
-	},
-	recoveryFill: {
-		height: '100%',
-		width: '100%',
-		borderRadius: 3,
-	},
+
 	recoveryInfo: {
 		flexDirection: 'row',
 		alignItems: 'center',

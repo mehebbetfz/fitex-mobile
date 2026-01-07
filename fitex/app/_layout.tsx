@@ -1,26 +1,12 @@
-import { ThemeProvider, useTheme } from '@/src/theme/ThemeContex'
 import { Stack } from 'expo-router'
-import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
-// Компонент для установки StatusBar в зависимости от темы
-function ThemedStatusBar() {
-	const { isDark } = useTheme()
-	return <StatusBar style={!isDark ? 'light' : 'dark'} />
-}
-
 function RootLayoutContent() {
-	const { colors } = useTheme()
-
 	return (
 		<>
-			<ThemedStatusBar />
 			<Stack
 				screenOptions={{
 					headerShown: false,
-					contentStyle: {
-						backgroundColor: colors.background,
-					},
 				}}
 			>
 				<Stack.Screen name='index' />
@@ -34,9 +20,7 @@ function RootLayoutContent() {
 export default function RootLayout() {
 	return (
 		<SafeAreaProvider>
-			<ThemeProvider>
-					<RootLayoutContent />
-			</ThemeProvider>
+			<RootLayoutContent />
 		</SafeAreaProvider>
 	)
 }
