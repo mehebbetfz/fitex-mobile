@@ -1,7 +1,9 @@
+import * as db from '@/scripts/database'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
+	ActivityIndicator,
 	Dimensions,
 	ScrollView,
 	StyleSheet,
@@ -39,197 +41,182 @@ interface ProgressStat {
 
 const screenWidth = Dimensions.get('window').width
 
-// Моковые данные для статистики
-const WEIGHT_HISTORY_DATA = [
-	{ month: 'Янв', weight: 78.5 },
-	{ month: 'Фев', weight: 77.8 },
-	{ month: 'Мар', weight: 76.3 },
-	{ month: 'Апр', weight: 75.7 },
-	{ month: 'Май', weight: 75.2 },
-	{ month: 'Июн', weight: 74.8 },
-]
-
-const BODY_MEASUREMENTS: BodyMeasurement[] = [
-	{
-		id: '1',
-		name: 'Грудь',
-		current: 102,
-		previous: 104,
-		unit: 'см',
-		trend: 'down',
-	},
-	{
-		id: '2',
-		name: 'Талия',
-		current: 84,
-		previous: 87,
-		unit: 'см',
-		trend: 'down',
-	},
-	{
-		id: '3',
-		name: 'Бедра',
-		current: 95,
-		previous: 93,
-		unit: 'см',
-		trend: 'up',
-	},
-	{
-		id: '4',
-		name: 'Бицепс',
-		current: 38,
-		previous: 36,
-		unit: 'см',
-		trend: 'up',
-	},
-	{
-		id: '5',
-		name: 'Трицепс',
-		current: 35,
-		previous: 33,
-		unit: 'см',
-		trend: 'up',
-	},
-	{
-		id: '6',
-		name: 'Шея',
-		current: 40,
-		previous: 41,
-		unit: 'см',
-		trend: 'down',
-	},
-	{ id: '7', name: 'Икры', current: 42, previous: 40, unit: 'см', trend: 'up' },
-	{
-		id: '8',
-		name: 'Плечо',
-		current: 45,
-		previous: 43,
-		unit: 'см',
-		trend: 'up',
-	},
-]
-
-const PROGRESS_STATS: ProgressStat[] = [
-	{
-		id: '1',
-		title: 'Общий вес',
-		value: '-3.7 кг',
-		subtitle: 'за 6 месяцев',
-		icon: 'scale',
-		trend: 'positive',
-	},
-	{
-		id: '3',
-		title: 'Мышцы',
-		value: '+4.1 кг',
-		subtitle: 'прирост массы',
-		icon: 'fitness',
-		trend: 'positive',
-	},
-	{
-		id: '5',
-		title: 'Сила',
-		value: '+27%',
-		subtitle: 'рост за 3 мес',
-		icon: 'barbell',
-		trend: 'positive',
-	},
-	{
-		id: '6',
-		title: 'Выносливость',
-		value: '+35%',
-		subtitle: 'улучшение',
-		icon: 'speedometer',
-		trend: 'positive',
-	},
-]
-
-const RECORDS = [
-	{
-		id: '1',
-		exercise: 'Жим лежа',
-		weight: '120 кг',
-		date: '2 дня назад',
-		trend: 'up',
-	},
-	{
-		id: '2',
-		exercise: 'Присед',
-		weight: '160 кг',
-		date: 'неделю назад',
-		trend: 'up',
-	},
-	{
-		id: '3',
-		exercise: 'Становая',
-		weight: '180 кг',
-		date: '3 дня назад',
-		trend: 'stable',
-	},
-	{
-		id: '4',
-		exercise: 'Подтягивания',
-		weight: '+30 кг',
-		date: 'месяц назад',
-		trend: 'up',
-	},
-	{
-		id: '5',
-		exercise: 'Бег 5км',
-		weight: '22:15',
-		date: 'неделю назад',
-		trend: 'up',
-	},
-	{
-		id: '6',
-		exercise: 'Отжимания',
-		weight: '45 раз',
-		date: '5 дней назад',
-		trend: 'up',
-	},
-]
-
-const WORKOUT_HISTORY = [
-	{
-		id: '1',
-		date: 'Сегодня',
-		type: 'Силовая',
-		duration: '60 мин',
-		calories: 520,
-	},
-	{ id: '2', date: 'Вчера', type: 'Кардио', duration: '45 мин', calories: 380 },
-	{
-		id: '3',
-		date: '2 дня назад',
-		type: 'Восстановление',
-		duration: '30 мин',
-		calories: 180,
-	},
-	{
-		id: '4',
-		date: '3 дня назад',
-		type: 'Силовая',
-		duration: '75 мин',
-		calories: 610,
-	},
-]
-
 export default function StatisticsTab() {
 	const router = useRouter()
-	const [activeChart, setActiveChart] = useState<'weight' | 'fat' | 'muscle'>(
-		'weight'
-	)
-	const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month')
 	const [selectedMetric, setSelectedMetric] = useState('weight')
+
+	// Состояния для данных
+	const [weightHistoryData, setWeightHistoryData] = useState<any[]>([])
+	const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[]>(
+		[]
+	)
+	const [progressStats, setProgressStats] = useState<ProgressStat[]>([])
+	const [personalRecords, setPersonalRecords] = useState<any[]>([])
+	const [loading, setLoading] = useState({
+		measurements: true,
+		stats: true,
+		records: true,
+		weight: true,
+	})
+
+	// Загрузка данных
+	useEffect(() => {
+		loadAllData()
+	}, [])
+
+	const loadAllData = async () => {
+		try {
+			// Загружаем замеры тела
+			const measurements = await db.getLatestBodyMeasurements()
+			const formattedMeasurements = measurements.map((m, index) => {
+				// Ищем предыдущее значение для расчета тренда
+				let trend: 'up' | 'down' | 'stable' = 'stable'
+				if (m.trend === 'up' || m.trend === 'down' || m.trend === 'stable') {
+					trend = m.trend
+				}
+
+				return {
+					id: m.id?.toString() || index.toString(),
+					name: m.name,
+					current: m.value,
+					previous: m.value, // Для простоты используем то же значение
+					unit: m.unit,
+					trend,
+				}
+			})
+			setBodyMeasurements(formattedMeasurements)
+			loading.measurements = false
+
+			// Загружаем историю веса (используем замеры "Вес")
+			const weightMeasurements = measurements.filter(
+				m =>
+					m.name.toLowerCase().includes('вес') ||
+					m.name.toLowerCase().includes('вес')
+			)
+
+			// Форматируем для графика
+			const formattedWeightHistory = weightMeasurements.map((m, index) => {
+				const date = new Date(m.date)
+				const months = [
+					'Янв',
+					'Фев',
+					'Мар',
+					'Апр',
+					'Май',
+					'Июн',
+					'Июл',
+					'Авг',
+					'Сен',
+					'Окт',
+					'Ноя',
+					'Дек',
+				]
+				return {
+					month: months[date.getMonth()],
+					weight: m.value,
+				}
+			})
+			setWeightHistoryData(formattedWeightHistory.slice(0, 6)) // Берем последние 6 записей
+			loading.weight = false
+
+			// Загружаем рекорды
+			const records = await db.getPersonalRecords()
+			const formattedRecords = records.map((r, index) => {
+				let trend: 'up' | 'down' | 'stable' = 'stable'
+				if (r.trend === 'up' || r.trend === 'down' || r.trend === 'stable') {
+					trend = r.trend
+				}
+
+				return {
+					id: r.id?.toString() || index.toString(),
+					exercise: r.exercise,
+					weight: r.weight,
+					date: db.formatDate(r.date) || r.date,
+					trend,
+				}
+			})
+			setPersonalRecords(formattedRecords.slice(0, 6)) // Берем последние 6 записей
+			loading.records = false
+
+			// Загружаем статистику тренировок
+			const stats = await db.getWorkoutStats()
+
+			// Форматируем статистику прогресса
+			const formattedStats: ProgressStat[] = [
+				{
+					id: '1',
+					title: 'Общий вес',
+					value: `${
+						stats.total_volume
+							? `-${(stats.total_volume / 1000).toFixed(1)} кг`
+							: '0 кг'
+					}`,
+					subtitle: 'общий тоннаж',
+					icon: 'scale',
+					trend: 'positive',
+				},
+				{
+					id: '2',
+					title: 'Мышцы',
+					value: '+4.1 кг',
+					subtitle: 'прирост массы',
+					icon: 'fitness',
+					trend: 'positive',
+				},
+				{
+					id: '3',
+					title: 'Сила',
+					value: '+27%',
+					subtitle: 'рост за 3 мес',
+					icon: 'barbell',
+					trend: 'positive',
+				},
+				{
+					id: '4',
+					title: 'Выносливость',
+					value: '+35%',
+					subtitle: 'улучшение',
+					icon: 'speedometer',
+					trend: 'positive',
+				},
+			]
+			setProgressStats(formattedStats)
+			loading.stats = false
+		} catch (error) {
+			console.error('Error loading statistics data:', error)
+		}
+	}
 
 	const handleAddMeasurement = () => {
 		router.push('/(auth)/statistics/add')
 	}
 
+	const handleRedirectToRecordsHistory = () => {
+		router.push({
+			pathname: '/(routes)/records-history',
+		})
+	}
+
+	const handleRedirectToMeasurementsHistory = () => {
+		router.push({
+			pathname: '/(routes)/measurements-history',
+		})
+	}
+
 	// Простая визуализация графика веса
 	const renderWeightChart = () => {
-		const maxWeight = Math.max(...WEIGHT_HISTORY_DATA.map(d => d.weight))
-		const minWeight = Math.min(...WEIGHT_HISTORY_DATA.map(d => d.weight))
+		if (weightHistoryData.length === 0) {
+			return (
+				<View style={styles.emptyChart}>
+					<Ionicons name='stats-chart' size={48} color='#8E8E93' />
+					<Text style={styles.emptyChartText}>Нет данных о весе</Text>
+					<Text style={styles.emptyChartSubtext}>Добавьте замеры веса</Text>
+				</View>
+			)
+		}
+
+		const maxWeight = Math.max(...weightHistoryData.map(d => d.weight))
+		const minWeight = Math.min(...weightHistoryData.map(d => d.weight))
 		const range = maxWeight - minWeight
 
 		return (
@@ -242,8 +229,9 @@ export default function StatisticsTab() {
 					<Text style={styles.chartYLabel}>{minWeight.toFixed(1)}</Text>
 				</View>
 				<View style={styles.chartContent}>
-					{WEIGHT_HISTORY_DATA.map((item, index) => {
-						const height = ((item.weight - minWeight) / range) * 150
+					{weightHistoryData.map((item, index) => {
+						const height =
+							range > 0 ? ((item.weight - minWeight) / range) * 150 : 75
 						return (
 							<View key={index} style={styles.chartColumn}>
 								<View style={[styles.chartBar, { height }]} />
@@ -405,6 +393,19 @@ export default function StatisticsTab() {
 		)
 	}
 
+	const calculateCurrentWeight = () => {
+		if (weightHistoryData.length === 0) return '75.2 кг'
+		return `${weightHistoryData[0].weight} кг`
+	}
+
+	const calculateWeightChange = () => {
+		if (weightHistoryData.length < 2) return '-3.7 кг'
+		const current = weightHistoryData[0].weight
+		const previous = weightHistoryData[weightHistoryData.length - 1].weight
+		const change = current - previous
+		return `${change.toFixed(1)} кг`
+	}
+
 	return (
 		<SafeAreaView style={styles.container}>
 			<ScrollView showsVerticalScrollIndicator={false}>
@@ -459,7 +460,7 @@ export default function StatisticsTab() {
 					<View style={styles.currentValueIndicator}>
 						<Text style={styles.currentValueText}>
 							{selectedMetric === 'weight'
-								? '75.2 кг'
+								? calculateCurrentWeight()
 								: selectedMetric === 'fat'
 								? '18.5%'
 								: 'Средний рост: 12%'}
@@ -468,7 +469,7 @@ export default function StatisticsTab() {
 							<Ionicons name='arrow-down' size={12} color='#34C759' />
 							<Text style={styles.trendText}>
 								{selectedMetric === 'weight'
-									? '-3.7 кг'
+									? calculateWeightChange()
 									: selectedMetric === 'fat'
 									? '-4.0%'
 									: '+15% за год'}
@@ -493,20 +494,26 @@ export default function StatisticsTab() {
 							showsHorizontalScrollIndicator={false}
 							contentContainerStyle={styles.statsContainer}
 						>
-							{PROGRESS_STATS.map(stat => (
-								<View key={stat.id} style={styles.statCard}>
-									<View style={styles.statHeader}>
-										<Ionicons
-											name={stat.icon as any}
-											size={24}
-											color='#34C759'
-										/>
-										<Text style={styles.statTitle}>{stat.title}</Text>
-									</View>
-									<Text style={styles.statValue}>{stat.value}</Text>
-									<Text style={styles.statSubtitle}>{stat.subtitle}</Text>
+							{loading.stats ? (
+								<View style={styles.loadingContainer}>
+									<ActivityIndicator size='small' color='#34C759' />
 								</View>
-							))}
+							) : (
+								progressStats.map(stat => (
+									<View key={stat.id} style={styles.statCard}>
+										<View style={styles.statHeader}>
+											<Ionicons
+												name={stat.icon as any}
+												size={24}
+												color='#34C759'
+											/>
+											<Text style={styles.statTitle}>{stat.title}</Text>
+										</View>
+										<Text style={styles.statValue}>{stat.value}</Text>
+										<Text style={styles.statSubtitle}>{stat.subtitle}</Text>
+									</View>
+								))
+							)}
 						</ScrollView>
 					</View>
 				</View>
@@ -515,53 +522,61 @@ export default function StatisticsTab() {
 				<View style={styles.section}>
 					<View style={styles.sectionHeader}>
 						<Text style={styles.sectionTitle}>Замеры тела</Text>
-						<TouchableOpacity
-							onPress={() => router.push('/(auth)/statistics/measurements')}
-						>
+						<TouchableOpacity onPress={handleRedirectToMeasurementsHistory}>
 							<Text style={styles.seeAll}>История</Text>
 						</TouchableOpacity>
 					</View>
 					<View style={styles.measurementsGrid}>
-						{BODY_MEASUREMENTS.map(item => (
-							<View key={item.id} style={styles.measurementGridItem}>
-								<View style={styles.measurementHeader}>
-									<Text style={styles.measurementName}>{item.name}</Text>
-									<Ionicons
-										name={
-											item.trend === 'up'
-												? 'arrow-up'
-												: item.trend === 'down'
-												? 'arrow-down'
-												: 'remove'
-										}
-										size={16}
-										color={
-											item.trend === 'up'
-												? '#34C759'
-												: item.trend === 'down'
-												? '#FF3B30'
-												: '#8E8E93'
-										}
-									/>
-								</View>
-								<Text style={styles.measurementValue}>
-									{item.current} {item.unit}
-								</Text>
-								<Text
-									style={[
-										styles.measurementChange,
-										item.trend === 'up'
-											? { color: '#34C759' }
-											: item.trend === 'down'
-											? { color: '#FF3B30' }
-											: { color: '#8E8E93' },
-									]}
-								>
-									{item.trend === 'up' ? '+' : ''}
-									{item.current - item.previous} {item.unit}
-								</Text>
+						{loading.measurements ? (
+							<View style={styles.loadingContainer}>
+								<ActivityIndicator size='small' color='#34C759' />
 							</View>
-						))}
+						) : bodyMeasurements.length === 0 ? (
+							<View style={styles.emptyContainer}>
+								<Text style={styles.emptyText}>Нет замеров</Text>
+							</View>
+						) : (
+							bodyMeasurements.map(item => (
+								<View key={item.id} style={styles.measurementGridItem}>
+									<View style={styles.measurementHeader}>
+										<Text style={styles.measurementName}>{item.name}</Text>
+										<Ionicons
+											name={
+												item.trend === 'up'
+													? 'arrow-up'
+													: item.trend === 'down'
+													? 'arrow-down'
+													: 'remove'
+											}
+											size={16}
+											color={
+												item.trend === 'up'
+													? '#34C759'
+													: item.trend === 'down'
+													? '#FF3B30'
+													: '#8E8E93'
+											}
+										/>
+									</View>
+									<Text style={styles.measurementValue}>
+										{item.current} {item.unit}
+									</Text>
+									<Text
+										style={[
+											styles.measurementChange,
+											item.trend === 'up'
+												? { color: '#34C759' }
+												: item.trend === 'down'
+												? { color: '#FF3B30' }
+												: { color: '#8E8E93' },
+										]}
+									>
+										{item.trend === 'up' ? '+' : ''}
+										{item.current - item.previous} {item.unit}
+									</Text>
+								</View>
+							))
+						)}
 					</View>
 				</View>
 
@@ -569,48 +584,56 @@ export default function StatisticsTab() {
 				<View style={styles.section}>
 					<View style={styles.sectionHeader}>
 						<Text style={styles.sectionTitle}>Личные рекорды</Text>
-						<TouchableOpacity
-							onPress={() => router.push('/(auth)/statistics/records')}
-						>
+						<TouchableOpacity onPress={handleRedirectToRecordsHistory}>
 							<Text style={styles.seeAll}>Все рекорды</Text>
 						</TouchableOpacity>
 					</View>
 					<View style={styles.recordsGrid}>
-						{RECORDS.map(record => (
-							<View key={record.id} style={styles.recordCard}>
-								<View style={styles.recordHeader}>
-									<Text style={styles.recordExercise}>{record.exercise}</Text>
-									<View style={styles.recordWeightBadge}>
-										<Text style={styles.recordWeight}>{record.weight}</Text>
-									</View>
-								</View>
-								<View style={styles.recordFooter}>
-									<Text style={styles.recordDate}>{record.date}</Text>
-									<View
-										style={[
-											styles.trendBadge,
-											record.trend === 'up'
-												? { backgroundColor: '#34C759' }
-												: record.trend === 'stable'
-												? { backgroundColor: '#8E8E93' }
-												: { backgroundColor: '#FF3B30' },
-										]}
-									>
-										<Ionicons
-											name={
-												record.trend === 'up'
-													? 'arrow-up'
-													: record.trend === 'stable'
-													? 'remove'
-													: 'arrow-down'
-											}
-											size={16}
-											color='#FFFFFF'
-										/>
-									</View>
-								</View>
+						{loading.records ? (
+							<View style={styles.loadingContainer}>
+								<ActivityIndicator size='small' color='#34C759' />
 							</View>
-						))}
+						) : personalRecords.length === 0 ? (
+							<View style={styles.emptyContainer}>
+								<Text style={styles.emptyText}>Нет рекордов</Text>
+							</View>
+						) : (
+							personalRecords.map(record => (
+								<View key={record.id} style={styles.recordCard}>
+									<View style={styles.recordHeader}>
+										<Text style={styles.recordExercise}>{record.exercise}</Text>
+										<View style={styles.recordWeightBadge}>
+											<Text style={styles.recordWeight}>{record.weight}</Text>
+										</View>
+									</View>
+									<View style={styles.recordFooter}>
+										<Text style={styles.recordDate}>{record.date}</Text>
+										<View
+											style={[
+												styles.trendBadge,
+												record.trend === 'up'
+													? { backgroundColor: '#34C759' }
+													: record.trend === 'stable'
+													? { backgroundColor: '#8E8E93' }
+													: { backgroundColor: '#FF3B30' },
+											]}
+										>
+											<Ionicons
+												name={
+													record.trend === 'up'
+														? 'arrow-up'
+														: record.trend === 'stable'
+														? 'remove'
+														: 'arrow-down'
+												}
+												size={16}
+												color='#FFFFFF'
+											/>
+										</View>
+									</View>
+								</View>
+							))
+						)}
 					</View>
 				</View>
 			</ScrollView>
@@ -641,9 +664,6 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		color: '#B0B0B0',
 		marginTop: 4,
-	},
-	addButton: {
-		padding: 4,
 	},
 	section: {
 		marginTop: 24,
@@ -876,60 +896,6 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
-	workoutHistory: {
-		backgroundColor: '#1E1E1E',
-		borderRadius: 16,
-		padding: 16,
-	},
-	workoutItem: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		paddingVertical: 12,
-		borderBottomWidth: 1,
-		borderBottomColor: '#2C2C2E',
-	},
-	workoutInfo: {
-		flex: 1,
-	},
-	workoutDate: {
-		fontSize: 14,
-		color: '#B0B0B0',
-		marginBottom: 4,
-	},
-	workoutType: {
-		fontSize: 16,
-		fontWeight: '600',
-		color: '#FFFFFF',
-	},
-	workoutStats: {
-		flexDirection: 'row',
-	},
-	workoutStat: {
-		marginLeft: 16,
-		alignItems: 'flex-end',
-	},
-	workoutStatValue: {
-		fontSize: 16,
-		fontWeight: 'bold',
-		color: '#34C759',
-	},
-	workoutStatLabel: {
-		fontSize: 12,
-		color: '#8E8E93',
-		marginTop: 2,
-	},
-	progressChartsContainer: {
-		flexDirection: 'row',
-	},
-	progressChartWrapper: {
-		flex: 2,
-		backgroundColor: '#1E1E1E',
-		borderRadius: 16,
-		padding: 16,
-		marginRight: 12,
-		justifyContent: 'center',
-	},
 	progressChartContainer: {
 		flex: 1,
 		justifyContent: 'center',
@@ -968,23 +934,34 @@ const styles = StyleSheet.create({
 		fontWeight: 'bold',
 		color: '#FFFFFF',
 	},
-	progressSummary: {
-		flex: 1,
-		justifyContent: 'space-around',
+	emptyChart: {
+		alignItems: 'center',
+		justifyContent: 'center',
+		padding: 20,
 	},
-	summaryItem: {
-		backgroundColor: '#1E1E1E',
-		borderRadius: 12,
-		padding: 16,
-	},
-	summaryLabel: {
-		fontSize: 14,
-		color: '#B0B0B0',
-		marginBottom: 4,
-	},
-	summaryValue: {
-		fontSize: 24,
-		fontWeight: 'bold',
+	emptyChartText: {
+		fontSize: 16,
 		color: '#FFFFFF',
+		marginTop: 12,
+	},
+	emptyChartSubtext: {
+		fontSize: 14,
+		color: '#8E8E93',
+		marginTop: 4,
+	},
+	loadingContainer: {
+		flex: 1,
+		alignItems: 'center',
+		justifyContent: 'center',
+		padding: 20,
+	},
+	emptyContainer: {
+		width: '100%',
+		alignItems: 'center',
+		padding: 20,
+	},
+	emptyText: {
+		color: '#8E8E93',
+		fontSize: 14,
 	},
 })

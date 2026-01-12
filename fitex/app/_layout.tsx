@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { DatabaseProvider } from './contexts/database-context'
 
 function RootLayoutContent() {
 	return (
@@ -19,8 +20,10 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
 	return (
-		<SafeAreaProvider>
-			<RootLayoutContent />
-		</SafeAreaProvider>
+		<DatabaseProvider>
+			<SafeAreaProvider>
+				<RootLayoutContent />
+			</SafeAreaProvider>
+		</DatabaseProvider>
 	)
 }

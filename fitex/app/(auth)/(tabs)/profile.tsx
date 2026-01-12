@@ -1,3 +1,4 @@
+import { showWorkoutsColumns } from '@/scripts/database'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useRouter } from 'expo-router'
@@ -354,7 +355,7 @@ export default function ProfileTab() {
 									style: 'destructive',
 									onPress: async () => {
 										try {
-											await AsyncStorage.clear()
+											await showWorkoutsColumns()
 											Alert.alert(
 												'Успех',
 												'Все данные сброшены. Приложение будет перезапущено.'

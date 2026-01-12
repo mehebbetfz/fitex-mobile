@@ -1,12 +1,12 @@
+import { useDatabase } from '@/app/contexts/database-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
 	Alert,
 	FlatList,
 	Image,
 	Modal,
-	ScrollView,
 	StyleSheet,
 	Text,
 	TextInput,
@@ -15,8 +15,24 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+// Константы для цветов
+const COLORS = {
+	primary: '#34C759',
+	background: '#000',
+	card: '#1C1C1E',
+	border: '#2C2C2E',
+	text: '#FFFFFF',
+	textSecondary: '#8E8E93',
+	error: '#FF3B30',
+	warning: '#FFCC00',
+	success: '#34C759',
+	modalOverlay: 'rgba(0, 0, 0, 0.8)',
+} as const
+
+// Типы
 interface ExerciseSet {
-	id: string
+	id?: number
+	setId?: string // Для совместимости со старым кодом
 	setNumber: number
 	weight: number
 	reps: number
@@ -24,15 +40,23 @@ interface ExerciseSet {
 }
 
 interface Exercise {
-	id: string
+	id?: number
+	exerciseId?: string // Для совместимости со старым кодом
 	name: string
 	muscleGroup: string
 	sets: ExerciseSet[]
 	collapsed: boolean
 }
 
+interface MuscleGroup {
+	id: string
+	name: string
+	image: string
+	exercises: string[]
+}
+
 // Данные для модального окна
-const MUSCLE_GROUPS = [
+const MUSCLE_GROUPS: MuscleGroup[] = [
 	{
 		id: 'chest',
 		name: 'Грудь',
@@ -99,66 +123,253 @@ const MUSCLE_GROUPS = [
 	},
 ]
 
-interface MuscleGroup {
-	id: string
-	name: string
-	image: string
-	exercises: string[]
+// Подкомпонент для строки подхода
+interface SetRowProps {
+	set: ExerciseSet
+	exerciseId: number
+	onComplete: (exerciseId: number, setId: number) => void
+	onUpdate: (
+		exerciseId: number,
+		setId: number,
+		field: 'weight' | 'reps',
+		value: string
+	) => void
+	onRemove: (exerciseId: number, setId: number) => void
 }
 
+const SetRow: React.FC<SetRowProps> = React.memo(
+	({ set, exerciseId, onComplete, onUpdate, onRemove }) => {
+		const setId = set.id || parseInt(set.setId || '0')
+
+		const handleWeightChange = useCallback(
+			(value: string) => {
+				onUpdate(exerciseId, setId, 'weight', value)
+			},
+			[exerciseId, setId, onUpdate]
+		)
+
+		const handleRepsChange = useCallback(
+			(value: string) => {
+				onUpdate(exerciseId, setId, 'reps', value)
+			},
+			[exerciseId, setId, onUpdate]
+		)
+
+		return (
+			<View style={styles.setRow}>
+				<Text style={styles.setNumber}>{set.setNumber}</Text>
+
+				<TextInput
+					style={[styles.input, set.completed && styles.inputCompleted]}
+					value={set.weight.toString()}
+					onChangeText={handleWeightChange}
+					keyboardType='numeric'
+					editable={!set.completed}
+					placeholderTextColor={COLORS.textSecondary}
+					maxLength={5}
+				/>
+
+				<TextInput
+					style={[styles.input, set.completed && styles.inputCompleted]}
+					value={set.reps.toString()}
+					onChangeText={handleRepsChange}
+					keyboardType='numeric'
+					editable={!set.completed}
+					placeholderTextColor={COLORS.textSecondary}
+					maxLength={3}
+				/>
+
+				<TouchableOpacity
+					style={[styles.checkbox, set.completed && styles.checkboxCompleted]}
+					onPress={() => onComplete(exerciseId, setId)}
+					activeOpacity={0.7}
+				>
+					{set.completed && (
+						<Ionicons name='checkmark' size={16} color={COLORS.background} />
+					)}
+				</TouchableOpacity>
+
+				<TouchableOpacity
+					style={styles.deleteButton}
+					onPress={() => onRemove(exerciseId, setId)}
+					activeOpacity={0.7}
+				>
+					<Ionicons name='trash-outline' size={18} color={COLORS.error} />
+				</TouchableOpacity>
+			</View>
+		)
+	}
+)
+
+// Подкомпонент для упражнения
+interface ExerciseItemProps {
+	exercise: Exercise
+	onToggleCollapse: (id: number) => void
+	onSetComplete: (exerciseId: number, setId: number) => void
+	onUpdateSet: (
+		exerciseId: number,
+		setId: number,
+		field: 'weight' | 'reps',
+		value: string
+	) => void
+	onRemoveSet: (exerciseId: number, setId: number) => void
+	onAddSet: (exerciseId: number) => void
+}
+
+const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
+	({
+		exercise,
+		onToggleCollapse,
+		onSetComplete,
+		onUpdateSet,
+		onRemoveSet,
+		onAddSet,
+	}) => {
+		const exerciseId = exercise.id || parseInt(exercise.exerciseId || '0')
+
+		return (
+			<View style={styles.exerciseCard}>
+				<TouchableOpacity
+					style={styles.exerciseHeader}
+					onPress={() => onToggleCollapse(exerciseId)}
+					activeOpacity={0.7}
+				>
+					<View style={styles.exerciseHeaderContent}>
+						<Ionicons
+							name={exercise.collapsed ? 'chevron-down' : 'chevron-up'}
+							size={20}
+							color={COLORS.primary}
+							style={styles.collapseIcon}
+						/>
+						<View>
+							<Text style={styles.exerciseName}>{exercise.name}</Text>
+							<Text style={styles.exerciseMuscle}>{exercise.muscleGroup}</Text>
+						</View>
+					</View>
+					<TouchableOpacity activeOpacity={0.7}>
+						<Ionicons
+							name='ellipsis-vertical'
+							size={20}
+							color={COLORS.textSecondary}
+						/>
+					</TouchableOpacity>
+				</TouchableOpacity>
+
+				{!exercise.collapsed && (
+					<>
+						<View style={styles.setsHeader}>
+							<Text style={{ ...styles.setHeaderText, width: 20 }}>#</Text>
+							<Text style={{ ...styles.setHeaderText, width: 80 }}>
+								Вес (кг)
+							</Text>
+							<Text style={{ ...styles.setHeaderText, width: 80 }}>
+								Повторения
+							</Text>
+							<Text style={styles.setHeaderText}></Text>
+							<Text style={styles.setHeaderText}>Delete</Text>
+						</View>
+
+						{exercise.sets.map(set => (
+							<SetRow
+								key={set.id || set.setId}
+								set={set}
+								exerciseId={exerciseId}
+								onComplete={onSetComplete}
+								onUpdate={onUpdateSet}
+								onRemove={onRemoveSet}
+							/>
+						))}
+
+						<TouchableOpacity
+							style={styles.addSetButton}
+							onPress={() => onAddSet(exerciseId)}
+							activeOpacity={0.7}
+						>
+							<Ionicons name='add' size={20} color={COLORS.primary} />
+							<Text style={styles.addSetText}>Добавить подход</Text>
+						</TouchableOpacity>
+					</>
+				)}
+			</View>
+		)
+	}
+)
+
+// Основной компонент
 export default function WorkoutScreen() {
 	const router = useRouter()
 	const params = useLocalSearchParams()
-	const workoutId = params.id as string
+	const workoutId = params.id ? parseInt(params.id as string) : 0
+	const {
+		getActiveWorkout,
+		updateWorkout,
+		getWorkoutExercises,
+		getExerciseSets,
+		updateSet,
+		addSetToExercise,
+		deleteSet,
+		addExerciseToWorkout,
+		deleteExercise,
+		completeWorkout,
+		getActiveExercises,
+		getActiveSets,
+	} = useDatabase()
 
-	const [workoutName, setWorkoutName] = useState('Силовая тренировка груди')
-	const [startTime] = useState(new Date())
-	const [exercises, setExercises] = useState<Exercise[]>([
-		{
-			id: '1',
-			name: 'Жим лежа',
-			muscleGroup: 'Грудь',
-			sets: [
-				{ id: '1-1', setNumber: 1, weight: 60, reps: 12, completed: true },
-				{ id: '1-2', setNumber: 2, weight: 70, reps: 10, completed: true },
-				{ id: '1-3', setNumber: 3, weight: 80, reps: 8, completed: false },
-				{ id: '1-4', setNumber: 4, weight: 85, reps: 6, completed: false },
-			],
-			collapsed: false,
-		},
-		{
-			id: '2',
-			name: 'Разведение гантелей',
-			muscleGroup: 'Грудь',
-			sets: [
-				{ id: '2-1', setNumber: 1, weight: 12, reps: 15, completed: false },
-				{ id: '2-2', setNumber: 2, weight: 14, reps: 12, completed: false },
-				{ id: '2-3', setNumber: 3, weight: 16, reps: 10, completed: false },
-			],
-			collapsed: false,
-		},
-		{
-			id: '3',
-			name: 'Отжимания на брусьях',
-			muscleGroup: 'Грудь, Трицепс',
-			sets: [
-				{ id: '3-1', setNumber: 1, weight: 0, reps: 15, completed: false },
-				{ id: '3-2', setNumber: 2, weight: 0, reps: 12, completed: false },
-				{ id: '3-3', setNumber: 3, weight: 10, reps: 10, completed: false },
-			],
-			collapsed: false,
-		},
-	])
-
+	const [workoutName, setWorkoutName] = useState('Новая тренировка')
+	const [exercises, setExercises] = useState<Exercise[]>([])
 	const [timer, setTimer] = useState(0)
 	const [isTimerRunning, setIsTimerRunning] = useState(false)
-
-	// Состояния для модального окна
 	const [showAddExerciseModal, setShowAddExerciseModal] = useState(false)
 	const [selectedMuscleGroup, setSelectedMuscleGroup] =
 		useState<MuscleGroup | null>(null)
 	const [selectedExercise, setSelectedExercise] = useState<string | null>(null)
+	const [imageError, setImageError] = useState<{ [key: string]: boolean }>({})
+	const [notes, setNotes] = useState('')
 
+	// Загрузка данных тренировки
+	useEffect(() => {
+		if (workoutId) {
+			loadWorkoutData()
+		}
+	}, [workoutId])
+
+	const loadWorkoutData = async () => {
+		try {
+			// Загружаем данные тренировки
+			const workout = await getActiveWorkout(workoutId)
+			if (workout) {
+				setWorkoutName(workout.name)
+				setTimer(workout.duration || 0)
+			}
+
+			// Загружаем упражнения
+			const activeExercises = await getActiveExercises(workoutId)
+			const exercisesWithSets = await Promise.all(
+				activeExercises.map(async (ex: any) => {
+					const sets = await getActiveSets(ex.id)
+					return {
+						id: ex.id,
+						name: ex.name,
+						muscleGroup: ex.muscle_group,
+						sets: sets.map((set: any, index: number) => ({
+							id: set.id,
+							setNumber: set.set_number,
+							weight: set.weight,
+							reps: set.reps,
+							completed: set.completed,
+						})),
+						collapsed: ex.collapsed,
+					}
+				})
+			)
+			setExercises(exercisesWithSets)
+		} catch (error) {
+			console.error('Error loading workout data:', error)
+			Alert.alert('Ошибка', 'Не удалось загрузить данные тренировки')
+		}
+	}
+
+	// Таймер
 	useEffect(() => {
 		let interval: NodeJS.Timeout
 		if (isTimerRunning) {
@@ -169,16 +380,41 @@ export default function WorkoutScreen() {
 		return () => clearInterval(interval)
 	}, [isTimerRunning])
 
-	const formatTime = (seconds: number) => {
+	// Автосохранение тренировки
+	useEffect(() => {
+		const saveWorkoutDuration = async () => {
+			try {
+				await updateWorkout(workoutId, { duration: timer })
+			} catch (error) {
+				console.error('Error saving workout duration:', error)
+			}
+		}
+
+		const debouncedSave = setTimeout(saveWorkoutDuration, 5000)
+		return () => clearTimeout(debouncedSave)
+	}, [timer, workoutId])
+
+	// Мемоизированные вычисления
+	const { totalCompleted, totalSets } = useMemo(() => {
+		const totalSets = exercises.reduce((sum, ex) => sum + ex.sets.length, 0)
+		const totalCompleted = exercises.reduce(
+			(sum, ex) => sum + ex.sets.filter(set => set.completed).length,
+			0
+		)
+		return { totalCompleted, totalSets }
+	}, [exercises])
+
+	const formatTime = useCallback((seconds: number) => {
 		const hrs = Math.floor(seconds / 3600)
 		const mins = Math.floor((seconds % 3600) / 60)
 		const secs = seconds % 60
 		return `${hrs.toString().padStart(2, '0')}:${mins
 			.toString()
 			.padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-	}
+	}, [])
 
-	const toggleExerciseCollapse = (exerciseId: string) => {
+	// Обработчики с useCallback
+	const toggleExerciseCollapse = useCallback(async (exerciseId: number) => {
 		setExercises(prev =>
 			prev.map(exercise =>
 				exercise.id === exerciseId
@@ -186,112 +422,226 @@ export default function WorkoutScreen() {
 					: exercise
 			)
 		)
-	}
+	}, [])
 
-	const handleSetComplete = (exerciseId: string, setId: string) => {
-		setExercises(prev =>
-			prev.map(exercise =>
-				exercise.id === exerciseId
-					? {
-							...exercise,
-							sets: exercise.sets.map(set =>
-								set.id === setId ? { ...set, completed: !set.completed } : set
-							),
-					  }
-					: exercise
-			)
-		)
-	}
+	const handleSetComplete = useCallback(
+		async (exerciseId: number, setId: number) => {
+			try {
+				await updateSet(setId, { completed: true })
+				await loadWorkoutData() // Перезагружаем данные
+			} catch (error) {
+				console.error('Error completing set:', error)
+				Alert.alert('Ошибка', 'Не удалось обновить подход')
+			}
+		},
+		[]
+	)
 
-	const handleUpdateSet = (
-		exerciseId: string,
-		setId: string,
-		field: string,
-		value: string
-	) => {
-		const numValue = parseFloat(value) || 0
-		setExercises(prev =>
-			prev.map(exercise =>
-				exercise.id === exerciseId
-					? {
-							...exercise,
-							sets: exercise.sets.map(set =>
-								set.id === setId ? { ...set, [field]: numValue } : set
-							),
-					  }
-					: exercise
-			)
-		)
-	}
+	const handleUpdateSet = useCallback(
+		async (
+			exerciseId: number,
+			setId: number,
+			field: 'weight' | 'reps',
+			value: string
+		) => {
+			try {
+				// Валидация ввода
+				const numValue = parseFloat(value) || 0
+				const validatedValue = Math.min(
+					Math.max(numValue, 0),
+					field === 'weight' ? 999 : 999
+				)
 
-	const handleRemoveSet = (exerciseId: string, setId: string) => {
-		setExercises(prev =>
-			prev.map(exercise =>
-				exercise.id === exerciseId
-					? {
-							...exercise,
-							sets: exercise.sets
-								.filter(set => set.id !== setId)
-								.map((set, index) => ({ ...set, setNumber: index + 1 })),
-					  }
-					: exercise
-			)
-		)
-	}
+				await updateSet(setId, { [field]: validatedValue })
+				await loadWorkoutData() // Перезагружаем данные
+			} catch (error) {
+				console.error('Error updating set:', error)
+				Alert.alert('Ошибка', 'Не удалось обновить подход')
+			}
+		},
+		[]
+	)
 
-	const handleFinishWorkout = () => {
-		const totalSets = exercises.reduce((sum, ex) => sum + ex.sets.length, 0)
-		const completedSets = exercises.reduce(
-			(sum, ex) => sum + ex.sets.filter(set => set.completed).length,
-			0
-		)
+	const handleRemoveSet = useCallback(
+		async (exerciseId: number, setId: number) => {
+			Alert.alert('Удалить подход?', 'Это действие нельзя отменить', [
+				{ text: 'Отмена', style: 'cancel' },
+				{
+					text: 'Удалить',
+					style: 'destructive',
+					onPress: async () => {
+						try {
+							await deleteSet(setId)
+							await loadWorkoutData() // Перезагружаем данные
+						} catch (error) {
+							console.error('Error deleting set:', error)
+							Alert.alert('Ошибка', 'Не удалось удалить подход')
+						}
+					},
+				},
+			])
+		},
+		[]
+	)
 
+	const handleAddSet = useCallback(
+		async (exerciseId: number) => {
+			try {
+				const maxSetNumber =
+					exercises
+						.find(ex => ex.id === exerciseId)
+						?.sets.reduce((max, set) => Math.max(max, set.setNumber), 0) || 0
+
+				await addSetToExercise(exerciseId, {
+					set_number: maxSetNumber + 1,
+					weight: 0,
+					reps: 0,
+					completed: false,
+				})
+				await loadWorkoutData() // Перезагружаем данные
+			} catch (error) {
+				console.error('Error adding set:', error)
+				Alert.alert('Ошибка', 'Не удалось добавить подход')
+			}
+		},
+		[exercises]
+	)
+
+	const handleFinishWorkout = useCallback(async () => {
 		Alert.alert(
 			'Завершить тренировку?',
-			`Выполнено ${completedSets} из ${totalSets} подходов`,
+			`Вы выполнили ${exercises.length} упражнений и ${totalSets} подходов`,
 			[
 				{ text: 'Отмена', style: 'cancel' },
 				{
 					text: 'Завершить',
-					onPress: () => {
-						Alert.alert('Успех', 'Тренировка сохранена!')
-						router.back()
+					onPress: async () => {
+						try {
+							// Обновляем заметки перед завершением
+							if (notes.trim()) {
+								await updateWorkout(workoutId, { notes: notes.trim() })
+							}
+
+							const completedId = await completeWorkout(workoutId)
+							Alert.alert('Успех', `Тренировка #${completedId} сохранена!`)
+							router.back()
+						} catch (error) {
+							console.error('Error completing workout:', error)
+							Alert.alert('Ошибка', 'Не удалось завершить тренировку')
+						}
 					},
 				},
 			]
 		)
-	}
+	}, [exercises, totalSets, notes, workoutId, router])
 
-	const handleAddExercise = () => {
-		if (selectedExercise) {
-			const newExercise: Exercise = {
-				id: Date.now().toString(),
-				name: selectedExercise,
-				muscleGroup: selectedMuscleGroup?.name || '',
-				sets: [
-					{
-						id: `${Date.now()}-1`,
-						setNumber: 1,
-						weight: 0,
-						reps: 0,
-						completed: false,
-					},
-				],
-				collapsed: false,
+	const handleAddExercise = useCallback(async () => {
+		if (selectedExercise && selectedMuscleGroup) {
+			try {
+				await addExerciseToWorkout(workoutId, {
+					name: selectedExercise,
+					muscle_group: selectedMuscleGroup.name,
+					order_index: exercises.length + 1,
+					collapsed: false,
+				})
+
+				setShowAddExerciseModal(false)
+				setSelectedMuscleGroup(null)
+				setSelectedExercise(null)
+				await loadWorkoutData() // Перезагружаем данные
+			} catch (error) {
+				console.error('Error adding exercise:', error)
+				Alert.alert('Ошибка', 'Не удалось добавить упражнение')
 			}
-
-			setExercises(prev => [...prev, newExercise])
-			setShowAddExerciseModal(false)
-			setSelectedMuscleGroup(null)
-			setSelectedExercise(null)
 		}
-	}
+	}, [selectedExercise, selectedMuscleGroup, workoutId, exercises.length])
 
-	const totalCompleted = exercises.reduce(
-		(sum, ex) => sum + ex.sets.filter(set => set.completed).length,
-		0
+	const handleRemoveExercise = useCallback(async (exerciseId: number) => {
+		Alert.alert('Удалить упражнение?', 'Все подходы также будут удалены', [
+			{ text: 'Отмена', style: 'cancel' },
+			{
+				text: 'Удалить',
+				style: 'destructive',
+				onPress: async () => {
+					try {
+						await deleteExercise(exerciseId)
+						await loadWorkoutData() // Перезагружаем данные
+					} catch (error) {
+						console.error('Error deleting exercise:', error)
+						Alert.alert('Ошибка', 'Не удалось удалить упражнение')
+					}
+				},
+			},
+		])
+	}, [])
+
+	// Рендер элементов для FlatList
+	const renderExerciseItem = useCallback(
+		({ item }: { item: Exercise }) => (
+			<ExerciseItem
+				exercise={item}
+				onToggleCollapse={toggleExerciseCollapse}
+				onSetComplete={handleSetComplete}
+				onUpdateSet={handleUpdateSet}
+				onRemoveSet={handleRemoveSet}
+				onAddSet={handleAddSet}
+			/>
+		),
+		[
+			toggleExerciseCollapse,
+			handleSetComplete,
+			handleUpdateSet,
+			handleRemoveSet,
+			handleAddSet,
+		]
 	)
-	const totalSets = exercises.reduce((sum, ex) => sum + ex.sets.length, 0)
+
+	const renderMuscleGroupItem = useCallback(
+		({ item }: { item: MuscleGroup }) => (
+			<TouchableOpacity
+				style={styles.muscleGroupCard}
+				onPress={() => setSelectedMuscleGroup(item)}
+				activeOpacity={0.7}
+			>
+				<View style={styles.muscleGroupImageContainer}>
+					{imageError[item.id] ? (
+						<Ionicons name='barbell-outline' size={40} color={COLORS.primary} />
+					) : (
+						<Image
+							source={{ uri: item.image }}
+							style={styles.muscleGroupImage}
+							onError={() =>
+								setImageError(prev => ({ ...prev, [item.id]: true }))
+							}
+						/>
+					)}
+				</View>
+				<Text style={styles.muscleGroupName}>{item.name}</Text>
+				<Text style={styles.muscleGroupExercisesCount}>
+					{item.exercises.length} упражнений
+				</Text>
+			</TouchableOpacity>
+		),
+		[imageError]
+	)
+
+	const renderExerciseListItem = useCallback(
+		({ item }: { item: string }) => (
+			<TouchableOpacity
+				style={styles.exerciseItem}
+				onPress={() => setSelectedExercise(item)}
+				activeOpacity={0.7}
+			>
+				<Text style={styles.exerciseItemName}>{item}</Text>
+				<Ionicons
+					name='chevron-forward'
+					size={20}
+					color={COLORS.textSecondary}
+				/>
+			</TouchableOpacity>
+		),
+		[]
+	)
 
 	return (
 		<SafeAreaView style={styles.container}>
@@ -299,211 +649,111 @@ export default function WorkoutScreen() {
 				<TouchableOpacity
 					onPress={() => router.back()}
 					style={styles.backButton}
+					activeOpacity={0.7}
 				>
-					<Ionicons name='close' size={28} color='#8E8E93' />
+					<Ionicons name='close' size={28} color={COLORS.textSecondary} />
 				</TouchableOpacity>
 				<Text style={styles.headerTitle}>Тренировка</Text>
 				<TouchableOpacity
 					onPress={handleFinishWorkout}
 					style={styles.finishButton}
+					activeOpacity={0.7}
 				>
 					<Text style={styles.finishButtonText}>Готово</Text>
 				</TouchableOpacity>
 			</View>
 
-			<ScrollView
-				style={styles.scrollView}
-				showsVerticalScrollIndicator={false}
-			>
-				<View style={styles.workoutInfo}>
-					<TextInput
-						style={styles.workoutName}
-						value={workoutName}
-						onChangeText={setWorkoutName}
-						placeholder='Название тренировки'
-						placeholderTextColor='#8E8E93'
-					/>
+			<View style={styles.workoutInfo}>
+				<TextInput
+					style={styles.workoutName}
+					value={workoutName}
+					onChangeText={async text => {
+						setWorkoutName(text)
+						try {
+							await updateWorkout(workoutId, { name: text })
+						} catch (error) {
+							console.error('Error updating workout name:', error)
+						}
+					}}
+					placeholder='Название тренировки'
+					placeholderTextColor={COLORS.textSecondary}
+				/>
 
-					<View style={styles.statsRow}>
-						<View style={styles.stat}>
-							<Text style={styles.statNumber}>{formatTime(timer)}</Text>
-							<Text style={styles.statLabel}>Время</Text>
-						</View>
-						<View style={styles.stat}>
-							<Text style={styles.statNumber}>
-								{totalCompleted}/{totalSets}
-							</Text>
-							<Text style={styles.statLabel}>Подходы</Text>
-						</View>
-						<View style={styles.stat}>
-							<Text style={styles.statNumber}>{exercises.length}</Text>
-							<Text style={styles.statLabel}>Упражнения</Text>
-						</View>
-					</View>
-
-					<TouchableOpacity
-						style={styles.timerButton}
-						onPress={() => setIsTimerRunning(!isTimerRunning)}
-					>
-						<Ionicons
-							name={isTimerRunning ? 'pause' : 'play'}
-							size={24}
-							color='#34C759'
-						/>
-						<Text style={styles.timerButtonText}>
-							{isTimerRunning ? 'Пауза' : 'Старт'}
+				<View style={styles.statsRow}>
+					<View style={styles.stat}>
+						<Text style={styles.statNumber}>
+							{totalCompleted}/{totalSets}
 						</Text>
-					</TouchableOpacity>
-				</View>
-
-				{exercises.map((exercise, exerciseIndex) => (
-					<View key={exercise.id} style={styles.exerciseCard}>
-						<TouchableOpacity
-							style={styles.exerciseHeader}
-							onPress={() => toggleExerciseCollapse(exercise.id)}
-						>
-							<View style={styles.exerciseHeaderContent}>
-								<Ionicons
-									name={exercise.collapsed ? 'chevron-down' : 'chevron-up'}
-									size={20}
-									color='#34C759'
-									style={styles.collapseIcon}
-								/>
-								<View>
-									<Text style={styles.exerciseName}>{exercise.name}</Text>
-									<Text style={styles.exerciseMuscle}>
-										{exercise.muscleGroup}
-									</Text>
-								</View>
-							</View>
-							<TouchableOpacity>
-								<Ionicons name='ellipsis-vertical' size={20} color='#8E8E93' />
-							</TouchableOpacity>
-						</TouchableOpacity>
-
-						{!exercise.collapsed && (
-							<>
-								<View style={styles.setsHeader}>
-									<Text style={styles.setHeaderText}>Подход</Text>
-									<Text style={styles.setHeaderText}>Вес (кг)</Text>
-									<Text style={styles.setHeaderText}>Повторения</Text>
-									<Text style={styles.setHeaderText}>✓</Text>
-									<Text style={styles.setHeaderText}>✕</Text>
-								</View>
-
-								{exercise.sets.map(set => (
-									<View key={set.id} style={styles.setRow}>
-										<Text style={styles.setNumber}>{set.setNumber}</Text>
-
-										<TextInput
-											style={[
-												styles.input,
-												set.completed && styles.inputCompleted,
-											]}
-											value={set.weight.toString()}
-											onChangeText={value =>
-												handleUpdateSet(exercise.id, set.id, 'weight', value)
-											}
-											keyboardType='numeric'
-											editable={!set.completed}
-											placeholderTextColor='#8E8E93'
-										/>
-
-										<TextInput
-											style={[
-												styles.input,
-												set.completed && styles.inputCompleted,
-											]}
-											value={set.reps.toString()}
-											onChangeText={value =>
-												handleUpdateSet(exercise.id, set.id, 'reps', value)
-											}
-											keyboardType='numeric'
-											editable={!set.completed}
-											placeholderTextColor='#8E8E93'
-										/>
-
-										<TouchableOpacity
-											style={[
-												styles.checkbox,
-												set.completed && styles.checkboxCompleted,
-											]}
-											onPress={() => handleSetComplete(exercise.id, set.id)}
-										>
-											{set.completed && (
-												<Ionicons name='checkmark' size={16} color='#000' />
-											)}
-										</TouchableOpacity>
-
-										<TouchableOpacity
-											style={styles.deleteButton}
-											onPress={() => handleRemoveSet(exercise.id, set.id)}
-										>
-											<Ionicons
-												name='trash-outline'
-												size={18}
-												color='#FF3B30'
-											/>
-										</TouchableOpacity>
-									</View>
-								))}
-
-								<TouchableOpacity
-									style={styles.addSetButton}
-									onPress={() => {
-										const newSetNumber = exercise.sets.length + 1
-										const newSet: ExerciseSet = {
-											id: `${exercise.id}-${Date.now()}`,
-											setNumber: newSetNumber,
-											weight: 0,
-											reps: 0,
-											completed: false,
-										}
-										setExercises(prev =>
-											prev.map(ex =>
-												ex.id === exercise.id
-													? { ...ex, sets: [...ex.sets, newSet] }
-													: ex
-											)
-										)
-									}}
-								>
-									<Ionicons name='add' size={20} color='#34C759' />
-									<Text style={styles.addSetText}>Добавить подход</Text>
-								</TouchableOpacity>
-
-								{exerciseIndex < exercises.length - 1 && (
-									<View style={styles.restTimer}>
-										<Text style={styles.restText}>Отдых: 90 сек</Text>
-										<TouchableOpacity style={styles.restButton}>
-											<Text style={styles.restButtonText}>Пропустить</Text>
-										</TouchableOpacity>
-									</View>
-								)}
-							</>
-						)}
+						<Text style={styles.statLabel}>Подходы</Text>
 					</View>
-				))}
+					<View style={styles.stat}>
+						<Text style={styles.statNumber}>{exercises.length}</Text>
+						<Text style={styles.statLabel}>Упражнения</Text>
+					</View>
+					<View style={styles.stat}>
+						<Text style={styles.statNumber}>{formatTime(timer)}</Text>
+						<Text style={styles.statLabel}>Время</Text>
+					</View>
+				</View>
 
 				<TouchableOpacity
-					style={styles.addExerciseButton}
-					onPress={() => setShowAddExerciseModal(true)}
+					style={styles.timerButton}
+					onPress={() => setIsTimerRunning(!isTimerRunning)}
+					activeOpacity={0.7}
 				>
-					<Ionicons name='add-circle-outline' size={24} color='#34C759' />
-					<Text style={styles.addExerciseText}>Добавить упражнение</Text>
-				</TouchableOpacity>
-
-				<View style={styles.notesSection}>
-					<Text style={styles.notesTitle}>Заметки</Text>
-					<TextInput
-						style={styles.notesInput}
-						placeholder='Добавьте заметки к тренировке...'
-						placeholderTextColor='#8E8E93'
-						multiline
-						numberOfLines={4}
+					<Ionicons
+						name={isTimerRunning ? 'pause' : 'play'}
+						size={20}
+						color={COLORS.primary}
 					/>
-				</View>
-			</ScrollView>
+					<Text style={styles.timerButtonText}>
+						{isTimerRunning ? 'Пауза' : 'Старт'}
+					</Text>
+				</TouchableOpacity>
+			</View>
+
+			<FlatList
+				data={exercises}
+				renderItem={renderExerciseItem}
+				keyExtractor={item =>
+					item.id?.toString() || item.exerciseId || Math.random().toString()
+				}
+				showsVerticalScrollIndicator={false}
+				contentContainerStyle={styles.exercisesList}
+				initialNumToRender={5}
+				maxToRenderPerBatch={10}
+				windowSize={10}
+				ListFooterComponent={
+					<>
+						<TouchableOpacity
+							style={styles.addExerciseButton}
+							onPress={() => setShowAddExerciseModal(true)}
+							activeOpacity={0.7}
+						>
+							<Ionicons
+								name='add-circle-outline'
+								size={24}
+								color={COLORS.primary}
+							/>
+							<Text style={styles.addExerciseText}>Добавить упражнение</Text>
+						</TouchableOpacity>
+
+						<View style={styles.notesSection}>
+							<Text style={styles.notesTitle}>Заметки</Text>
+							<TextInput
+								style={styles.notesInput}
+								placeholder='Добавьте заметки к тренировке...'
+								placeholderTextColor={COLORS.textSecondary}
+								multiline
+								numberOfLines={4}
+								textAlignVertical='top'
+								value={notes}
+								onChangeText={setNotes}
+							/>
+						</View>
+					</>
+				}
+			/>
 
 			{/* Модальное окно добавления упражнения */}
 			<Modal
@@ -511,6 +761,7 @@ export default function WorkoutScreen() {
 				animationType='slide'
 				transparent={true}
 				onRequestClose={() => setShowAddExerciseModal(false)}
+				statusBarTranslucent
 			>
 				<View style={styles.modalOverlay}>
 					<View style={styles.modalContent}>
@@ -518,7 +769,7 @@ export default function WorkoutScreen() {
 							<Text style={styles.modalTitle}>
 								{selectedMuscleGroup
 									? selectedExercise
-										? 'Выберите упражнение'
+										? 'Подтверждение'
 										: `Упражнения для ${selectedMuscleGroup.name}`
 									: 'Выберите группу мышц'}
 							</Text>
@@ -533,8 +784,9 @@ export default function WorkoutScreen() {
 									}
 								}}
 								style={styles.modalCloseButton}
+								activeOpacity={0.7}
 							>
-								<Ionicons name='close' size={24} color='#8E8E93' />
+								<Ionicons name='close' size={24} color={COLORS.textSecondary} />
 							</TouchableOpacity>
 						</View>
 
@@ -545,47 +797,24 @@ export default function WorkoutScreen() {
 								horizontal
 								showsHorizontalScrollIndicator={false}
 								contentContainerStyle={styles.muscleGroupsList}
-								renderItem={({ item }) => (
-									<TouchableOpacity
-										style={styles.muscleGroupCard}
-										onPress={() => setSelectedMuscleGroup(item)}
-									>
-										<View style={styles.muscleGroupImageContainer}>
-											<Image
-												source={{ uri: item.image }}
-												style={styles.muscleGroupImage}
-											/>
-										</View>
-										<Text style={styles.muscleGroupName}>{item.name}</Text>
-										<Text style={styles.muscleGroupExercisesCount}>
-											{item.exercises.length} упражнений
-										</Text>
-									</TouchableOpacity>
-								)}
+								renderItem={renderMuscleGroupItem}
 								keyExtractor={item => item.id}
+								initialNumToRender={3}
+								windowSize={5}
 							/>
 						) : !selectedExercise ? (
-							// Шаг 2: Выбор упражнения для выбранной группы мышц
+							// Шаг 2: Выбор упражнения
 							<FlatList
 								data={selectedMuscleGroup.exercises}
-								contentContainerStyle={styles.exercisesList}
-								renderItem={({ item }) => (
-									<TouchableOpacity
-										style={styles.exerciseItem}
-										onPress={() => setSelectedExercise(item)}
-									>
-										<Text style={styles.exerciseItemName}>{item}</Text>
-										<Ionicons
-											name='chevron-forward'
-											size={20}
-											color='#8E8E93'
-										/>
-									</TouchableOpacity>
-								)}
+								contentContainerStyle={styles.exercisesListModal}
+								renderItem={renderExerciseListItem}
 								keyExtractor={item => item}
+								initialNumToRender={10}
+								maxToRenderPerBatch={20}
+								windowSize={21}
 							/>
 						) : (
-							// Шаг 3: Подтверждение выбора
+							// Шаг 3: Подтверждение
 							<View style={styles.confirmationContainer}>
 								<Text style={styles.confirmationTitle}>Вы выбрали:</Text>
 								<View style={styles.selectedExerciseCard}>
@@ -600,6 +829,7 @@ export default function WorkoutScreen() {
 								<TouchableOpacity
 									style={styles.confirmButton}
 									onPress={handleAddExercise}
+									activeOpacity={0.7}
 								>
 									<Text style={styles.confirmButtonText}>
 										Добавить упражнение
@@ -617,10 +847,7 @@ export default function WorkoutScreen() {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: '#000',
-	},
-	scrollView: {
-		flex: 1,
+		backgroundColor: COLORS.background,
 	},
 	header: {
 		flexDirection: 'row',
@@ -628,9 +855,9 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		paddingHorizontal: 20,
 		paddingVertical: 16,
-		backgroundColor: '#1C1C1E',
+		backgroundColor: COLORS.card,
 		borderBottomWidth: 1,
-		borderBottomColor: '#2C2C2E',
+		borderBottomColor: COLORS.border,
 	},
 	backButton: {
 		padding: 4,
@@ -638,7 +865,7 @@ const styles = StyleSheet.create({
 	headerTitle: {
 		fontSize: 18,
 		fontWeight: '600',
-		color: '#FFFFFF',
+		color: COLORS.text,
 	},
 	finishButton: {
 		padding: 8,
@@ -646,10 +873,10 @@ const styles = StyleSheet.create({
 	finishButtonText: {
 		fontSize: 16,
 		fontWeight: '600',
-		color: '#34C759',
+		color: COLORS.primary,
 	},
 	workoutInfo: {
-		backgroundColor: '#1C1C1E',
+		backgroundColor: COLORS.card,
 		padding: 20,
 		marginBottom: 12,
 		marginTop: 8,
@@ -657,11 +884,11 @@ const styles = StyleSheet.create({
 		marginHorizontal: 16,
 	},
 	workoutName: {
-		fontSize: 24,
+		fontSize: 20,
 		fontWeight: 'bold',
-		color: '#FFFFFF',
+		color: COLORS.text,
 		marginBottom: 20,
-		backgroundColor: '#2C2C2E',
+		backgroundColor: COLORS.border,
 		paddingHorizontal: 16,
 		paddingVertical: 12,
 		borderRadius: 12,
@@ -677,14 +904,14 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 	},
 	statNumber: {
-		fontSize: 20,
+		fontSize: 18,
 		fontWeight: 'bold',
-		color: '#34C759',
+		color: COLORS.primary,
 		marginBottom: 6,
 	},
 	statLabel: {
 		fontSize: 12,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 	},
 	timerButton: {
 		flexDirection: 'row',
@@ -699,17 +926,20 @@ const styles = StyleSheet.create({
 	timerButtonText: {
 		fontSize: 16,
 		fontWeight: '600',
-		color: '#34C759',
+		color: COLORS.primary,
 		marginLeft: 8,
 	},
+	exercisesList: {
+		paddingVertical: 10,
+	},
 	exerciseCard: {
-		backgroundColor: '#1C1C1E',
+		backgroundColor: COLORS.card,
 		marginBottom: 12,
 		padding: 16,
 		marginHorizontal: 16,
 		borderRadius: 16,
 		borderWidth: 1,
-		borderColor: '#2C2C2E',
+		borderColor: COLORS.border,
 	},
 	exerciseHeader: {
 		flexDirection: 'row',
@@ -728,11 +958,11 @@ const styles = StyleSheet.create({
 	exerciseName: {
 		fontSize: 18,
 		fontWeight: 'bold',
-		color: '#FFFFFF',
+		color: COLORS.text,
 	},
 	exerciseMuscle: {
 		fontSize: 14,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 		marginTop: 4,
 	},
 	setsHeader: {
@@ -744,7 +974,7 @@ const styles = StyleSheet.create({
 	setHeaderText: {
 		fontSize: 12,
 		fontWeight: '600',
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 		width: 60,
 		textAlign: 'center',
 	},
@@ -754,30 +984,30 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		paddingVertical: 12,
 		borderBottomWidth: 1,
-		borderBottomColor: '#2C2C2E',
+		borderBottomColor: COLORS.border,
 	},
 	setNumber: {
 		fontSize: 16,
 		fontWeight: '600',
-		color: '#FFFFFF',
-		width: 60,
+		color: COLORS.text,
+		width: 30,
 		textAlign: 'center',
 	},
 	input: {
-		width: 60,
-		height: 40,
+		width: 80,
+		height: 50,
 		borderWidth: 1,
 		borderColor: '#3A3A3C',
 		borderRadius: 8,
 		textAlign: 'center',
 		fontSize: 16,
-		color: '#FFFFFF',
-		backgroundColor: '#2C2C2E',
+		color: COLORS.text,
+		backgroundColor: COLORS.border,
 	},
 	inputCompleted: {
-		backgroundColor: '#1C1C1E',
-		color: '#8E8E93',
-		borderColor: '#34C759',
+		backgroundColor: COLORS.card,
+		color: COLORS.textSecondary,
+		borderColor: COLORS.primary,
 	},
 	checkbox: {
 		width: 24,
@@ -787,11 +1017,11 @@ const styles = StyleSheet.create({
 		borderColor: '#3A3A3C',
 		alignItems: 'center',
 		justifyContent: 'center',
-		backgroundColor: '#2C2C2E',
+		backgroundColor: COLORS.border,
 	},
 	checkboxCompleted: {
-		backgroundColor: '#34C759',
-		borderColor: '#34C759',
+		backgroundColor: COLORS.primary,
+		borderColor: COLORS.primary,
 	},
 	deleteButton: {
 		width: 60,
@@ -811,68 +1041,41 @@ const styles = StyleSheet.create({
 	},
 	addSetText: {
 		fontSize: 14,
-		color: '#34C759',
+		color: COLORS.primary,
 		fontWeight: '600',
 		marginLeft: 8,
-	},
-	restTimer: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		backgroundColor: 'rgba(255, 204, 0, 0.1)',
-		padding: 12,
-		borderRadius: 8,
-		marginTop: 16,
-		borderWidth: 1,
-		borderColor: 'rgba(255, 204, 0, 0.2)',
-	},
-	restText: {
-		fontSize: 14,
-		fontWeight: '600',
-		color: '#FFCC00',
-	},
-	restButton: {
-		backgroundColor: 'rgba(255, 204, 0, 0.2)',
-		paddingHorizontal: 12,
-		paddingVertical: 6,
-		borderRadius: 6,
-	},
-	restButtonText: {
-		fontSize: 12,
-		fontWeight: '600',
-		color: '#FFCC00',
 	},
 	addExerciseButton: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'center',
-		backgroundColor: '#1C1C1E',
+		backgroundColor: COLORS.card,
 		padding: 16,
 		marginBottom: 12,
 		marginHorizontal: 16,
 		borderRadius: 16,
 		borderWidth: 1,
-		borderColor: '#2C2C2E',
+		borderColor: COLORS.border,
 	},
 	addExerciseText: {
 		fontSize: 16,
-		color: '#34C759',
+		color: COLORS.primary,
 		fontWeight: '600',
 		marginLeft: 8,
 	},
 	notesSection: {
-		backgroundColor: '#1C1C1E',
+		backgroundColor: COLORS.card,
 		padding: 20,
 		marginBottom: 20,
 		marginHorizontal: 16,
 		borderRadius: 16,
 		borderWidth: 1,
-		borderColor: '#2C2C2E',
+		borderColor: COLORS.border,
 	},
 	notesTitle: {
 		fontSize: 16,
 		fontWeight: '600',
-		color: '#FFFFFF',
+		color: COLORS.text,
 		marginBottom: 12,
 	},
 	notesInput: {
@@ -881,19 +1084,18 @@ const styles = StyleSheet.create({
 		borderRadius: 12,
 		padding: 16,
 		fontSize: 14,
-		color: '#FFFFFF',
+		color: COLORS.text,
 		minHeight: 100,
-		textAlignVertical: 'top',
-		backgroundColor: '#2C2C2E',
+		backgroundColor: COLORS.border,
 	},
 	// Стили для модального окна
 	modalOverlay: {
 		flex: 1,
-		backgroundColor: 'rgba(0, 0, 0, 0.8)',
+		backgroundColor: COLORS.modalOverlay,
 		justifyContent: 'flex-end',
 	},
 	modalContent: {
-		backgroundColor: '#1C1C1E',
+		backgroundColor: COLORS.card,
 		borderTopLeftRadius: 24,
 		borderTopRightRadius: 24,
 		padding: 20,
@@ -908,7 +1110,7 @@ const styles = StyleSheet.create({
 	modalTitle: {
 		fontSize: 20,
 		fontWeight: 'bold',
-		color: '#FFFFFF',
+		color: COLORS.text,
 		flex: 1,
 	},
 	modalCloseButton: {
@@ -919,7 +1121,7 @@ const styles = StyleSheet.create({
 	},
 	muscleGroupCard: {
 		width: 120,
-		backgroundColor: '#2C2C2E',
+		backgroundColor: COLORS.border,
 		borderRadius: 16,
 		padding: 16,
 		marginRight: 12,
@@ -931,7 +1133,7 @@ const styles = StyleSheet.create({
 		width: 60,
 		height: 60,
 		borderRadius: 30,
-		backgroundColor: '#000',
+		backgroundColor: COLORS.background,
 		alignItems: 'center',
 		justifyContent: 'center',
 		marginBottom: 12,
@@ -940,21 +1142,21 @@ const styles = StyleSheet.create({
 	muscleGroupImage: {
 		width: 40,
 		height: 40,
-		tintColor: '#34C759',
+		tintColor: COLORS.primary,
 	},
 	muscleGroupName: {
 		fontSize: 16,
 		fontWeight: '600',
-		color: '#FFFFFF',
+		color: COLORS.text,
 		marginBottom: 4,
 		textAlign: 'center',
 	},
 	muscleGroupExercisesCount: {
 		fontSize: 12,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 		textAlign: 'center',
 	},
-	exercisesList: {
+	exercisesListModal: {
 		paddingVertical: 10,
 	},
 	exerciseItem: {
@@ -963,7 +1165,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		paddingVertical: 16,
 		paddingHorizontal: 16,
-		backgroundColor: '#2C2C2E',
+		backgroundColor: COLORS.border,
 		borderRadius: 12,
 		marginBottom: 8,
 		borderWidth: 1,
@@ -971,7 +1173,7 @@ const styles = StyleSheet.create({
 	},
 	exerciseItemName: {
 		fontSize: 16,
-		color: '#FFFFFF',
+		color: COLORS.text,
 		flex: 1,
 	},
 	confirmationContainer: {
@@ -980,32 +1182,32 @@ const styles = StyleSheet.create({
 	},
 	confirmationTitle: {
 		fontSize: 18,
-		color: '#FFFFFF',
+		color: COLORS.text,
 		marginBottom: 20,
 	},
 	selectedExerciseCard: {
-		backgroundColor: '#2C2C2E',
+		backgroundColor: COLORS.border,
 		borderRadius: 16,
 		padding: 20,
 		width: '100%',
 		borderWidth: 1,
-		borderColor: '#34C759',
+		borderColor: COLORS.primary,
 		marginBottom: 30,
 	},
 	selectedExerciseName: {
 		fontSize: 20,
 		fontWeight: 'bold',
-		color: '#34C759',
+		color: COLORS.primary,
 		marginBottom: 8,
 		textAlign: 'center',
 	},
 	selectedExerciseGroup: {
 		fontSize: 14,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 		textAlign: 'center',
 	},
 	confirmButton: {
-		backgroundColor: '#34C759',
+		backgroundColor: COLORS.primary,
 		paddingHorizontal: 32,
 		paddingVertical: 16,
 		borderRadius: 12,
@@ -1015,6 +1217,6 @@ const styles = StyleSheet.create({
 	confirmButtonText: {
 		fontSize: 16,
 		fontWeight: 'bold',
-		color: '#000',
+		color: COLORS.background,
 	},
 })

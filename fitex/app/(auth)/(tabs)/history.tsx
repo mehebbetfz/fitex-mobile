@@ -1,9 +1,15 @@
+// app/(tabs)/history.tsx
+import { useDatabase } from '@/app/contexts/database-context'
+import { formatDate } from '@/scripts/database'
 import { Ionicons } from '@expo/vector-icons'
-import { useEffect, useState } from 'react'
+import { useRouter } from 'expo-router'
+import React from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+	ActivityIndicator,
 	Dimensions,
 	FlatList,
-	ScrollView,
+	RefreshControl,
 	StyleSheet,
 	Text,
 	TouchableOpacity,
@@ -11,63 +17,20 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-const WORKOUT_HISTORY = [
-	{
-		id: '1',
-		date: 'Сегодня',
-		time: '18:30',
-		duration: '45 мин',
-		type: 'Силовая',
-		muscleGroups: ['Грудь', 'Трицепс'],
-		exercises: 4,
-		sets: 16,
-		volume: 4800,
-	},
-	{
-		id: '2',
-		date: 'Вчера',
-		time: '19:15',
-		duration: '60 мин',
-		type: 'Кардио',
-		muscleGroups: ['Ноги', 'Пресс'],
-		exercises: 5,
-		sets: 20,
-		volume: 3200,
-	},
-	{
-		id: '3',
-		date: '2 дня назад',
-		time: '17:45',
-		duration: '50 мин',
-		type: 'Верх тела',
-		muscleGroups: ['Спина', 'Бицепс'],
-		exercises: 5,
-		sets: 18,
-		volume: 4200,
-	},
-	{
-		id: '4',
-		date: '3 дня назад',
-		time: '20:00',
-		duration: '40 мин',
-		type: 'Ноги',
-		muscleGroups: ['Квадрицепс', 'Бицепс бедра'],
-		exercises: 4,
-		sets: 16,
-		volume: 3800,
-	},
-	{
-		id: '5',
-		date: '4 дня назад',
-		time: '18:00',
-		duration: '55 мин',
-		type: 'Круговая',
-		muscleGroups: ['Все тело'],
-		exercises: 6,
-		sets: 24,
-		volume: 5200,
-	},
-]
+
+// Константы для цветов
+const COLORS = {
+	primary: '#34C759',
+	background: '#121212',
+	card: '#1C1C1E',
+	border: '#2C2C2E',
+	text: '#FFFFFF',
+	textSecondary: '#8E8E93',
+	accent: '#FF9500',
+	success: '#34C759',
+	warning: '#FF9500',
+	error: '#FF3B30',
+} as const
 
 const MONTHS = [
 	'Янв',
@@ -84,246 +47,509 @@ const MONTHS = [
 	'Дек',
 ]
 
+// Подкомпонент для карточки тренировки
+interface WorkoutCardProps {
+	workout: any
+	onPress: (id: number) => void
+}
+
+const WorkoutCard: React.FC<WorkoutCardProps> = React.memo(
+	({ workout, onPress }) => {
+		const handlePress = useCallback(() => {
+			onPress(workout.id)
+		}, [workout.id, onPress])
+
+		const muscleGroups =
+			workout.muscle_groups?.split(',').map((g: string) => g.trim()) || []
+
+		return (
+			<TouchableOpacity
+				onPress={handlePress}
+				style={styles.workoutCard}
+				activeOpacity={0.7}
+			>
+				<View style={styles.workoutHeader}>
+					<View>
+						<Text style={styles.workoutDate}>{formatDate(workout.date)}</Text>
+						<Text style={styles.workoutTime}>{workout.time}</Text>
+					</View>
+					<View style={styles.workoutTypeBadge}>
+						<Text style={styles.workoutTypeText}>{workout.type}</Text>
+					</View>
+				</View>
+
+				<View style={styles.muscleGroups}>
+					{muscleGroups.map((muscle: string, index: number) => (
+						<View
+							key={`${workout.id}-${muscle}-${index}`}
+							style={styles.muscleTag}
+						>
+							<Text style={styles.muscleTagText}>{muscle}</Text>
+						</View>
+					))}
+				</View>
+
+				<View style={styles.workoutStats}>
+					<View style={styles.statItem}>
+						<Ionicons name='barbell' size={16} color={COLORS.textSecondary} />
+						<Text style={styles.statText}>{workout.exercises_count} упр.</Text>
+					</View>
+					<View style={styles.statItem}>
+						<Ionicons name='repeat' size={16} color={COLORS.textSecondary} />
+						<Text style={styles.statText}>{workout.sets_count} подх.</Text>
+					</View>
+					<View style={styles.statItem}>
+						<Ionicons name='time' size={16} color={COLORS.textSecondary} />
+						<Text style={styles.statText}>{workout.duration} мин</Text>
+					</View>
+					<View style={styles.statItem}>
+						<Ionicons
+							name='trending-up'
+							size={16}
+							color={COLORS.textSecondary}
+						/>
+						<Text style={styles.statText}>{workout.volume} кг</Text>
+					</View>
+				</View>
+			</TouchableOpacity>
+		)
+	}
+)
+
+// Подкомпонент для дня календаря
+interface CalendarDayProps {
+	dayData: any
+	daySize: number
+}
+
+const CalendarDayComponent: React.FC<CalendarDayProps> = React.memo(
+	({ dayData, daySize }) => {
+		if (!dayData.day) {
+			return (
+				<View style={[styles.emptyDay, { width: daySize, height: daySize }]} />
+			)
+		}
+
+		const today = new Date()
+		const isToday =
+			dayData.day === today.getDate() &&
+			dayData.month === today.getMonth() &&
+			dayData.year === today.getFullYear()
+
+		return (
+			<View
+				style={[styles.calendarDay, { width: daySize, height: daySize + 10 }]}
+			>
+				<View
+					style={[
+						styles.dayCircle,
+						dayData.hasWorkout && styles.dayCircleActive,
+						isToday && styles.dayCircleToday,
+					]}
+				>
+					<Text
+						style={[
+							styles.dayNumber,
+							dayData.hasWorkout && styles.dayNumberActive,
+							isToday && styles.dayNumberToday,
+						]}
+					>
+						{dayData.day}
+					</Text>
+				</View>
+				{dayData.hasWorkout && <View style={styles.dayDot} />}
+			</View>
+		)
+	}
+)
+
+// Подкомпонент для кнопки фильтра
+interface FilterButtonProps {
+	muscle: string
+	isActive: boolean
+	onPress: (muscle: string) => void
+}
+
+const FilterButton: React.FC<FilterButtonProps> = React.memo(
+	({ muscle, isActive, onPress }) => {
+		const handlePress = useCallback(() => {
+			onPress(muscle)
+		}, [muscle, onPress])
+
+		const getFilterLabel = useCallback((filter: string) => {
+			if (filter === 'all') return 'Все мышцы'
+			return filter
+		}, [])
+
+		return (
+			<TouchableOpacity
+				style={[styles.filterButton, isActive && styles.filterButtonActive]}
+				onPress={handlePress}
+				activeOpacity={0.7}
+			>
+				<Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+					{getFilterLabel(muscle)}
+				</Text>
+			</TouchableOpacity>
+		)
+	}
+)
+
+// Основной компонент
 export default function HistoryTab() {
+	const router = useRouter()
+	const {
+		workouts,
+		stats,
+		isLoading,
+		refreshWorkouts,
+		refreshStats,
+		getWorkoutDetails,
+	} = useDatabase()
+
 	const [selectedFilter, setSelectedFilter] = useState('all')
 	const [monthDays, setMonthDays] = useState<any[]>([])
-	const [stats, setStats] = useState({
-		streak: 7,
-	})
+	const [refreshing, setRefreshing] = useState(false)
+	const [calendarWorkouts, setCalendarWorkouts] = useState<any[]>([])
 
-	// Получаем все уникальные группы мышц из истории тренировок
-	const getAllMuscleGroups = () => {
+	const { width } = Dimensions.get('window')
+	const DAY_SIZE = (width - 80) / 7
+
+	// Получаем все уникальные группы мышц из тренировок
+	const muscleGroups = useMemo(() => {
 		const groups = new Set<string>()
-		WORKOUT_HISTORY.forEach(workout => {
-			workout.muscleGroups.forEach(group => groups.add(group))
+		workouts.forEach(workout => {
+			const muscles =
+				workout.muscle_groups?.split(',').map((g: string) => g.trim()) || []
+			muscles.forEach((muscle: string) => {
+				if (muscle) groups.add(muscle)
+			})
 		})
-		return Array.from(groups)
-	}
-
-	const muscleGroups = ['all', ...getAllMuscleGroups()]
+		return ['all', ...Array.from(groups)]
+	}, [workouts])
 
 	// Фильтруем тренировки по выбранной группе мышц
-	const filteredWorkouts = WORKOUT_HISTORY.filter(workout => {
-		if (selectedFilter === 'all') return true
-		return workout.muscleGroups.includes(selectedFilter)
-	})
+	const filteredWorkouts = useMemo(() => {
+		if (selectedFilter === 'all') return workouts
 
-	// Генерируем календарь на текущий месяц
-	const generateMonthCalendar = () => {
+		return workouts.filter(workout => {
+			const muscles =
+				workout.muscle_groups?.split(',').map((g: string) => g.trim()) || []
+			return muscles.includes(selectedFilter)
+		})
+	}, [workouts, selectedFilter])
+
+	// Генерируем календарь на текущий месяц с тренировками
+	const generateMonthCalendar = useCallback((workouts: any[]): any[] => {
 		const today = new Date()
 		const year = today.getFullYear()
 		const month = today.getMonth()
 
-		// Первый день месяца
 		const firstDay = new Date(year, month, 1)
-		// Последний день месяца
 		const lastDay = new Date(year, month + 1, 0)
-
-		// Количество дней в месяце
 		const daysInMonth = lastDay.getDate()
-
-		// День недели первого дня (0 - воскресенье, 1 - понедельник и т.д.)
 		const firstDayOfWeek = firstDay.getDay()
 
-		const days = []
+		const days: any[] = []
 
 		// Добавляем пустые ячейки для дней предыдущего месяца
 		for (let i = 0; i < firstDayOfWeek; i++) {
 			days.push({ day: null, hasWorkout: false })
 		}
 
+		// Создаем массив дней месяца с тренировками
+		const workoutDays = new Set<number>()
+		workouts.forEach(workout => {
+			const workoutDate = new Date(workout.date)
+			if (
+				workoutDate.getFullYear() === year &&
+				workoutDate.getMonth() === month
+			) {
+				workoutDays.add(workoutDate.getDate())
+			}
+		})
+
 		// Добавляем дни текущего месяца
 		for (let day = 1; day <= daysInMonth; day++) {
-			const hasWorkout = Math.random() > 0.6 // Моковые данные
-			days.push({ day, hasWorkout })
+			const hasWorkout = workoutDays.has(day)
+			days.push({
+				day,
+				hasWorkout,
+				month,
+				year,
+				date: new Date(year, month, day),
+			})
 		}
 
 		return days
-	}
-
-	useEffect(() => {
-		setMonthDays(generateMonthCalendar())
 	}, [])
 
-	const renderWorkoutCard = ({ item }: { item: any }) => (
-		<TouchableOpacity style={styles.workoutCard}>
-			<View style={styles.workoutHeader}>
-				<View>
-					<Text style={styles.workoutDate}>{item.date}</Text>
-					<Text style={styles.workoutTime}>{item.time}</Text>
-				</View>
-				<View style={styles.workoutTypeBadge}>
-					<Text style={styles.workoutTypeText}>{item.type}</Text>
-				</View>
-			</View>
-
-			<View style={styles.muscleGroups}>
-				{item.muscleGroups.map((muscle: string, index: number) => (
-					<View key={index} style={styles.muscleTag}>
-						<Text style={styles.muscleTagText}>{muscle}</Text>
-					</View>
-				))}
-			</View>
-
-			<View style={styles.workoutStats}>
-				<View style={styles.statItem}>
-					<Ionicons name='barbell' size={16} color='#8E8E93' />
-					<Text style={styles.statText}>{item.exercises} упр.</Text>
-				</View>
-				<View style={styles.statItem}>
-					<Ionicons name='repeat' size={16} color='#8E8E93' />
-					<Text style={styles.statText}>{item.sets} подх.</Text>
-				</View>
-				<View style={styles.statItem}>
-					<Ionicons name='time' size={16} color='#8E8E93' />
-					<Text style={styles.statText}>{item.duration}</Text>
-				</View>
-				<View style={styles.statItem}>
-					<Ionicons name='trending-up' size={16} color='#8E8E93' />
-					<Text style={styles.statText}>{item.volume} кг</Text>
-				</View>
-			</View>
-		</TouchableOpacity>
+	const handleWorkoutPress = useCallback(
+		async (id: number) => {
+			try {
+				const details = await getWorkoutDetails(id)
+				router.push({
+					pathname: '/(routes)/workout-details',
+					params: { id: id.toString(), data: JSON.stringify(details) },
+				} as any)
+			} catch (error) {
+				console.error('Error getting workout details:', error)
+			}
+		},
+		[router, getWorkoutDetails]
 	)
 
-	const getFilterLabel = (filter: string) => {
-		if (filter === 'all') return 'Все мышцы'
-		return filter
+	const handleRedirectToFullHistory = useCallback(() => {
+		router.push('/(routes)/full-history' as any)
+	}, [router])
+
+	const handleFilterPress = useCallback(
+		(muscle: string) => {
+			setSelectedFilter(muscle)
+			refreshWorkouts(muscle === 'all' ? undefined : muscle)
+		},
+		[refreshWorkouts]
+	)
+
+	const onRefresh = useCallback(async () => {
+		setRefreshing(true)
+		try {
+			await Promise.all([
+				refreshWorkouts(selectedFilter === 'all' ? undefined : selectedFilter),
+				refreshStats(),
+			])
+		} catch (error) {
+			console.error('Error refreshing:', error)
+		} finally {
+			setRefreshing(false)
+		}
+	}, [refreshWorkouts, refreshStats, selectedFilter])
+
+	// Инициализация календаря при загрузке тренировок
+	useEffect(() => {
+		if (workouts.length > 0) {
+			const calendar = generateMonthCalendar(workouts)
+			setMonthDays(calendar)
+			setCalendarWorkouts(workouts)
+		}
+	}, [workouts, generateMonthCalendar])
+
+	// Рендер элементы для FlatList
+	const renderWorkoutCard = useCallback(
+		({ item }: { item: any }) => (
+			<WorkoutCard workout={item} onPress={handleWorkoutPress} />
+		),
+		[handleWorkoutPress]
+	)
+
+	const renderCalendarDay = useCallback(
+		({ item }: { item: any }) => (
+			<CalendarDayComponent dayData={item} daySize={DAY_SIZE} />
+		),
+		[DAY_SIZE]
+	)
+
+	const renderFilterButton = useCallback(
+		({ item }: { item: string }) => (
+			<FilterButton
+				muscle={item}
+				isActive={selectedFilter === item}
+				onPress={handleFilterPress}
+			/>
+		),
+		[selectedFilter, handleFilterPress]
+	)
+
+	if (isLoading && !refreshing) {
+		return (
+			<SafeAreaView style={[styles.container, styles.centered]}>
+				<ActivityIndicator size='large' color={COLORS.primary} />
+				<Text style={styles.loadingText}>Загрузка данных...</Text>
+			</SafeAreaView>
+		)
 	}
 
 	return (
 		<SafeAreaView style={styles.container}>
-			<ScrollView showsVerticalScrollIndicator={false}>
-				<View style={styles.header}>
-					<View>
-						<Text style={styles.title}>История тренировок</Text>
-						<Text style={styles.subtitle}>Отслеживайте ваш прогресс</Text>
-					</View>
-				</View>
-
-				{/* Статистика - только дней подряд */}
-				<View style={styles.statsOverview}>
-					<View style={styles.streakCard}>
-						<View style={styles.streakIconContainer}>
-							<Ionicons name='flame' size={32} color='#FF9500' />
+			<FlatList
+				data={[]}
+				renderItem={null}
+				refreshControl={
+					<RefreshControl
+						refreshing={refreshing}
+						onRefresh={onRefresh}
+						colors={[COLORS.primary]}
+						tintColor={COLORS.primary}
+					/>
+				}
+				ListHeaderComponent={
+					<>
+						<View style={styles.header}>
+							<View>
+								<Text style={styles.title}>История тренировок</Text>
+								<Text style={styles.subtitle}>Отслеживайте ваш прогресс</Text>
+							</View>
+							<TouchableOpacity style={styles.exportButton} activeOpacity={0.7}>
+								<Ionicons
+									name='download-outline'
+									size={24}
+									color={COLORS.primary}
+								/>
+							</TouchableOpacity>
 						</View>
-						<View>
-							<Text style={styles.streakNumber}>{stats.streak}</Text>
-							<Text style={styles.streakLabel}>Дней подряд</Text>
-						</View>
-					</View>
-				</View>
 
-				{/* Фильтры по мышцам */}
-				<View style={styles.section}>
-					<View style={styles.sectionHeader}>
-						<Text style={styles.sectionTitle}>Фильтровать по мышцам</Text>
-					</View>
-					<ScrollView
-						horizontal
-						showsHorizontalScrollIndicator={false}
-						style={styles.filtersContainer}
-					>
-						{muscleGroups.map(muscle => (
-							<TouchableOpacity
-								key={muscle}
-								style={[
-									styles.filterButton,
-									selectedFilter === muscle && styles.filterButtonActive,
-								]}
-								onPress={() => setSelectedFilter(muscle)}
-							>
-								<Text
-									style={[
-										styles.filterText,
-										selectedFilter === muscle && styles.filterTextActive,
-									]}
+						{/* Статистика */}
+						<View style={styles.statsOverview}>
+							<View style={styles.streakCard}>
+								<View style={styles.streakIconContainer}>
+									<Ionicons name='flame' size={32} color={COLORS.accent} />
+								</View>
+								<View>
+									<Text style={styles.streakNumber}>
+										{stats?.streak_days || 0}
+									</Text>
+									<Text style={styles.streakLabel}>Дней подряд</Text>
+								</View>
+								<View style={styles.statsDivider} />
+								<View>
+									<Text style={styles.streakNumber}>{workouts.length}</Text>
+									<Text style={styles.streakLabel}>Всего тренировок</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Фильтры по мышцам */}
+						{muscleGroups.length > 1 && (
+							<View style={styles.section}>
+								<View style={styles.sectionHeader}>
+									<Text style={styles.sectionTitle}>Фильтровать по мышцам</Text>
+								</View>
+								<FlatList
+									data={muscleGroups}
+									renderItem={renderFilterButton}
+									keyExtractor={item => item}
+									horizontal
+									showsHorizontalScrollIndicator={false}
+									contentContainerStyle={styles.filtersContainer}
+									initialNumToRender={5}
+									windowSize={5}
+								/>
+							</View>
+						)}
+
+						{/* Активность - календарь на месяц */}
+						<View style={styles.section}>
+							<View style={styles.sectionHeader}>
+								<Text style={styles.sectionTitle}>Активность за месяц</Text>
+								<Text style={styles.monthLabel}>
+									{MONTHS[new Date().getMonth()]} {new Date().getFullYear()}
+								</Text>
+							</View>
+							<View style={styles.calendar}>
+								{/* Дни недели */}
+								<View style={styles.weekDays}>
+									{['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => (
+										<Text key={day} style={styles.weekDay}>
+											{day}
+										</Text>
+									))}
+								</View>
+
+								{/* Дни месяца */}
+								<FlatList
+									data={monthDays}
+									renderItem={renderCalendarDay}
+									keyExtractor={(item, index) =>
+										item.day ? `day-${item.day}` : `empty-${index}`
+									}
+									numColumns={7}
+									scrollEnabled={false}
+									contentContainerStyle={styles.monthDays}
+									initialNumToRender={35}
+								/>
+							</View>
+						</View>
+
+						{/* Список тренировок */}
+						<View style={styles.section}>
+							<View style={styles.sectionHeader}>
+								<Text style={styles.sectionTitle}>Последние тренировки</Text>
+								<TouchableOpacity
+									onPress={handleRedirectToFullHistory}
+									activeOpacity={0.7}
 								>
-									{getFilterLabel(muscle)}
+									<Text style={styles.seeAll}>Все →</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+					</>
+				}
+				ListFooterComponent={
+					filteredWorkouts.length > 0 ? (
+						<View style={styles.footer}>
+							<FlatList
+								data={filteredWorkouts}
+								renderItem={renderWorkoutCard}
+								keyExtractor={item => item.id.toString()}
+								scrollEnabled={false}
+								contentContainerStyle={styles.workoutList}
+								initialNumToRender={3}
+								maxToRenderPerBatch={5}
+								windowSize={5}
+							/>
+						</View>
+					) : (
+						<View style={styles.emptyState}>
+							<Ionicons
+								name='barbell-outline'
+								size={64}
+								color={COLORS.textSecondary}
+							/>
+							<Text style={styles.emptyStateTitle}>Нет тренировок</Text>
+							<Text style={styles.emptyStateText}>
+								{selectedFilter === 'all'
+									? 'Начните свою первую тренировку!'
+									: `Нет тренировок для группы "${selectedFilter}"`}
+							</Text>
+							<TouchableOpacity
+								style={styles.startWorkoutButton}
+								onPress={() => router.push('/(tabs)/workout' as any)}
+								activeOpacity={0.7}
+							>
+								<Text style={styles.startWorkoutButtonText}>
+									Начать тренировку
 								</Text>
 							</TouchableOpacity>
-						))}
-					</ScrollView>
-				</View>
-
-				{/* Активность - календарь на месяц */}
-				<View style={styles.section}>
-					<View style={styles.sectionHeader}>
-						<Text style={styles.sectionTitle}>Активность за месяц</Text>
-						<Text style={styles.monthLabel}>
-							{MONTHS[new Date().getMonth()]} {new Date().getFullYear()}
-						</Text>
-					</View>
-					<View style={styles.calendar}>
-						{/* Дни недели */}
-						<View style={styles.weekDays}>
-							{['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => (
-								<Text key={day} style={styles.weekDay}>
-									{day}
-								</Text>
-							))}
 						</View>
-
-						{/* Дни месяца */}
-						<View style={styles.monthDays}>
-							{monthDays.map((dayData, index) => (
-								<View key={index} style={styles.calendarDay}>
-									{dayData.day ? (
-										<>
-											<View
-												style={[
-													styles.dayCircle,
-													dayData.hasWorkout && styles.dayCircleActive,
-												]}
-											>
-												<Text
-													style={[
-														styles.dayNumber,
-														dayData.hasWorkout && styles.dayNumberActive,
-													]}
-												>
-													{dayData.day}
-												</Text>
-											</View>
-											{dayData.hasWorkout && <View style={styles.dayDot} />}
-										</>
-									) : (
-										<View style={styles.emptyDay} />
-									)}
-								</View>
-							))}
-						</View>
-					</View>
-				</View>
-
-				{/* Список тренировок */}
-				<View style={styles.section}>
-					<View style={styles.sectionHeader}>
-						<Text style={styles.sectionTitle}>Последние тренировки</Text>
-						<TouchableOpacity>
-							<Text style={styles.seeAll}>Все →</Text>
-						</TouchableOpacity>
-					</View>
-					<FlatList
-						data={filteredWorkouts}
-						renderItem={renderWorkoutCard}
-						keyExtractor={item => item.id}
-						scrollEnabled={false}
-						contentContainerStyle={styles.workoutList}
-					/>
-				</View>
-			</ScrollView>
+					)
+				}
+				showsVerticalScrollIndicator={false}
+				stickyHeaderIndices={muscleGroups.length > 1 ? [2] : []}
+				contentContainerStyle={styles.scrollContent}
+				initialNumToRender={10}
+				maxToRenderPerBatch={20}
+				windowSize={21}
+			/>
 		</SafeAreaView>
 	)
 }
 
-const { width } = Dimensions.get('window')
-const DAY_SIZE = (width - 80) / 7
-
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: '#121212',
+		backgroundColor: COLORS.background,
+	},
+	centered: {
+		justifyContent: 'center',
+		alignItems: 'center',
+	},
+	loadingText: {
+		marginTop: 16,
+		fontSize: 16,
+		color: COLORS.textSecondary,
+	},
+	scrollContent: {
+		paddingBottom: 20,
 	},
 	header: {
 		flexDirection: 'row',
@@ -336,11 +562,11 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 24,
 		fontWeight: 'bold',
-		color: '#FFFFFF',
+		color: COLORS.text,
 	},
 	subtitle: {
 		fontSize: 16,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 		marginTop: 4,
 	},
 	exportButton: {
@@ -351,14 +577,15 @@ const styles = StyleSheet.create({
 		marginTop: 20,
 	},
 	streakCard: {
-		backgroundColor: '#1C1C1E',
+		backgroundColor: COLORS.card,
 		borderRadius: 20,
 		padding: 20,
 		flexDirection: 'row',
 		alignItems: 'center',
+		justifyContent: 'space-around',
 		borderWidth: 2,
-		borderColor: '#FF9500',
-		shadowColor: '#FF9500',
+		borderColor: COLORS.accent,
+		shadowColor: COLORS.accent,
 		shadowOffset: { width: 0, height: 0 },
 		shadowOpacity: 0.3,
 		shadowRadius: 10,
@@ -371,18 +598,25 @@ const styles = StyleSheet.create({
 		backgroundColor: 'rgba(255, 149, 0, 0.1)',
 		justifyContent: 'center',
 		alignItems: 'center',
-		marginRight: 16,
 	},
 	streakNumber: {
-		fontSize: 36,
+		fontSize: 28,
 		fontWeight: 'bold',
-		color: '#FF9500',
+		color: COLORS.text,
 		marginBottom: 2,
+		textAlign: 'center',
 	},
 	streakLabel: {
-		fontSize: 14,
-		color: '#8E8E93',
+		fontSize: 12,
+		color: COLORS.textSecondary,
 		fontWeight: '500',
+		textAlign: 'center',
+	},
+	statsDivider: {
+		width: 1,
+		height: 40,
+		backgroundColor: COLORS.border,
+		marginHorizontal: 20,
 	},
 	section: {
 		marginTop: 24,
@@ -397,20 +631,20 @@ const styles = StyleSheet.create({
 	sectionTitle: {
 		fontSize: 18,
 		fontWeight: '600',
-		color: '#FFFFFF',
+		color: COLORS.text,
 	},
 	monthLabel: {
 		fontSize: 14,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 		fontWeight: '500',
 	},
 	seeAll: {
 		fontSize: 14,
-		color: '#00ff1eff',
+		color: COLORS.primary,
 		fontWeight: '600',
 	},
 	calendar: {
-		backgroundColor: '#1C1C1E',
+		backgroundColor: COLORS.card,
 		marginHorizontal: 20,
 		borderRadius: 20,
 		padding: 16,
@@ -421,19 +655,16 @@ const styles = StyleSheet.create({
 		marginBottom: 12,
 	},
 	weekDay: {
-		width: DAY_SIZE,
-		textAlign: 'center',
 		fontSize: 12,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 		fontWeight: '500',
+		flex: 1,
+		textAlign: 'center',
 	},
 	monthDays: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
+		width: '100%',
 	},
 	calendarDay: {
-		width: DAY_SIZE,
-		height: DAY_SIZE + 10,
 		alignItems: 'center',
 		justifyContent: 'center',
 		marginBottom: 4,
@@ -442,31 +673,39 @@ const styles = StyleSheet.create({
 		width: 32,
 		height: 32,
 		borderRadius: 16,
-		backgroundColor: '#2C2C2E',
+		backgroundColor: COLORS.border,
 		justifyContent: 'center',
 		alignItems: 'center',
 		marginBottom: 4,
 	},
 	dayCircleActive: {
-		backgroundColor: '#3fb55aff',
+		backgroundColor: COLORS.primary,
+	},
+	dayCircleToday: {
+		borderWidth: 2,
+		borderColor: COLORS.primary,
+		backgroundColor: 'transparent',
 	},
 	dayNumber: {
 		fontSize: 14,
 		fontWeight: '600',
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 	},
 	dayNumberActive: {
-		color: '#FFFFFF',
+		color: COLORS.text,
+	},
+	dayNumberToday: {
+		color: COLORS.primary,
+		fontWeight: 'bold',
 	},
 	dayDot: {
 		width: 4,
 		height: 4,
 		borderRadius: 2,
-		backgroundColor: '#34C759',
+		backgroundColor: COLORS.primary,
 	},
 	emptyDay: {
-		width: 32,
-		height: 32,
+		marginBottom: 4,
 	},
 	filtersContainer: {
 		paddingLeft: 20,
@@ -475,29 +714,32 @@ const styles = StyleSheet.create({
 	filterButton: {
 		paddingHorizontal: 16,
 		paddingVertical: 10,
-		backgroundColor: '#1C1C1E',
+		backgroundColor: COLORS.card,
 		borderRadius: 20,
 		marginRight: 8,
 		borderWidth: 1,
-		borderColor: '#2C2C2E',
+		borderColor: COLORS.border,
 	},
 	filterButtonActive: {
-		backgroundColor: '#00ff2aff',
-		borderColor: '#00ff2fff',
+		backgroundColor: COLORS.primary,
+		borderColor: COLORS.primary,
 	},
 	filterText: {
 		fontSize: 14,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 		fontWeight: '500',
 	},
 	filterTextActive: {
-		color: '#FFFFFF',
+		color: COLORS.text,
+	},
+	footer: {
+		paddingBottom: 40,
 	},
 	workoutList: {
 		paddingHorizontal: 20,
 	},
 	workoutCard: {
-		backgroundColor: '#1C1C1E',
+		backgroundColor: COLORS.card,
 		borderRadius: 16,
 		padding: 16,
 		marginBottom: 12,
@@ -511,15 +753,15 @@ const styles = StyleSheet.create({
 	workoutDate: {
 		fontSize: 16,
 		fontWeight: 'bold',
-		color: '#FFFFFF',
+		color: COLORS.text,
 	},
 	workoutTime: {
 		fontSize: 14,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 		marginTop: 2,
 	},
 	workoutTypeBadge: {
-		backgroundColor: 'rgba(0, 255, 72, 0.2)',
+		backgroundColor: 'rgba(52, 199, 89, 0.2)',
 		paddingHorizontal: 12,
 		paddingVertical: 6,
 		borderRadius: 12,
@@ -527,7 +769,7 @@ const styles = StyleSheet.create({
 	workoutTypeText: {
 		fontSize: 12,
 		fontWeight: '600',
-		color: '#00ff3cff',
+		color: COLORS.primary,
 	},
 	muscleGroups: {
 		flexDirection: 'row',
@@ -535,7 +777,7 @@ const styles = StyleSheet.create({
 		marginBottom: 12,
 	},
 	muscleTag: {
-		backgroundColor: '#2C2C2E',
+		backgroundColor: COLORS.border,
 		paddingHorizontal: 10,
 		paddingVertical: 4,
 		borderRadius: 12,
@@ -544,13 +786,13 @@ const styles = StyleSheet.create({
 	},
 	muscleTagText: {
 		fontSize: 12,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 	},
 	workoutStats: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		borderTopWidth: 1,
-		borderTopColor: '#2C2C2E',
+		borderTopColor: COLORS.border,
 		paddingTop: 12,
 	},
 	statItem: {
@@ -559,7 +801,37 @@ const styles = StyleSheet.create({
 	},
 	statText: {
 		fontSize: 12,
-		color: '#8E8E93',
+		color: COLORS.textSecondary,
 		marginLeft: 4,
+	},
+	emptyState: {
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingVertical: 60,
+		paddingHorizontal: 20,
+	},
+	emptyStateTitle: {
+		fontSize: 20,
+		fontWeight: 'bold',
+		color: COLORS.text,
+		marginTop: 16,
+		marginBottom: 8,
+	},
+	emptyStateText: {
+		fontSize: 16,
+		color: COLORS.textSecondary,
+		textAlign: 'center',
+		marginBottom: 24,
+	},
+	startWorkoutButton: {
+		backgroundColor: COLORS.primary,
+		paddingHorizontal: 32,
+		paddingVertical: 16,
+		borderRadius: 12,
+	},
+	startWorkoutButtonText: {
+		fontSize: 16,
+		fontWeight: 'bold',
+		color: COLORS.text,
 	},
 })

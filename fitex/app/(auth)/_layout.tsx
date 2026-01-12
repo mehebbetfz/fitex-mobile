@@ -1,4 +1,3 @@
-import LoadingScreen from '@/src/components/Loading'
 import { Stack } from 'expo-router'
 
 export default function AuthLayout() {
@@ -9,6 +8,7 @@ export default function AuthLayout() {
 	return (
 		<Stack screenOptions={{ headerShown: false }}>
 			<Stack.Screen name='(tabs)' />
+			<Stack.Screen name='(routes)' />
 			<Stack.Screen
 				name='workout'
 				options={{

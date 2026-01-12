@@ -11,9 +11,7 @@ export default function TabsLayout() {
 
 	const handleStartWorkout = () => {
 		// Генерируем ID для новой тренировки
-		const workoutId = 'quick-' + Date.now()
-		// Переходим сразу на страницу тренировки
-		router.push(`/workout/${workoutId}`)
+		router.push(`/workout/create`)
 	}
 
 	return (

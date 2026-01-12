@@ -1,5 +1,6 @@
 // Фронтальные изображения
 export const manFrontMuscleGroupParts = {
+	armFull: require('@/assets/muscle-selection-icons/man-front-muscle-group-parts/man_front_arm_full.png'),
 	bicepsFull: require('@/assets/muscle-selection-icons/man-front-muscle-group-parts/man_front_biceps_full.png'),
 	extensorCarp1Radials: require('@/assets/muscle-selection-icons/man-front-muscle-group-parts/man_front_extensor_carpi_radials.png'),
 	extensorCarp1Uharis: require('@/assets/muscle-selection-icons/man-front-muscle-group-parts/man_front_extensor_carpi_ulnaris.png'),
@@ -31,6 +32,7 @@ export const manFrontMuscleGroupParts = {
 	vastusInternedius: require('@/assets/muscle-selection-icons/man-front-muscle-group-parts/man_front_vastus_intermedius.png'),
 	vastusLateralis: require('@/assets/muscle-selection-icons/man-front-muscle-group-parts/man_front_vastus_lateralis.png'),
 	vastusMedialis: require('@/assets/muscle-selection-icons/man-front-muscle-group-parts/man_front_vastus_medialis.png'),
+	deltoidsFull: require('@/assets/muscle-selection-icons/man-front-muscle-group-parts/man_front_deltoids_full.png'),
 }
 
 export const manFrontMuscleGroups = {
@@ -176,7 +178,7 @@ export const manBackMuscleGroups = {
 	// latissimusDorsi: require('@/assets/muscle-selection-icons/man.back_muscle_groups/man_back_latissimus_dorsi.png'),
 	// lowerLegFull: require('@/assets/muscle-selection-icons/man.back_muscle_groups/man_back_lower_leg_full.png'),
 	// semitendinosus: require('@/assets/muscle-selection-icons/man.back_muscle_groups/man_back_semitendinosus.png'),
-	// spineFull: require('@/assets/muscle-selection-icons/man.back_muscle_groups/man_back_spine_full.png'),
+	// spineFull: require('@/assets/muscle-selection-icons/man_back_muscle_groups/man_back_spine_full.png'),
 	// thoracolumbarFascia: require('@/assets/muscle-selection-icons/man.back_muscle_groups/man_back_thoracolumbar_fascia.png'),
 	// trapeziusFull: require('@/assets/muscle-selection-icons/man.back_muscle_groups/man_back_trapezius_full.png'),
 	// triceps: require('@/assets/muscle-selection-icons/man.back_muscle_groups/man_back_triceps.png'),
@@ -197,7 +199,7 @@ export const manBackMuscleGroupParts = {
 	// latissimusDorsi: require('@/assets/muscle-selection-icons/man.back_muscle_group_parts/man_back_latissimus_dorsi.png'),
 	// lowerLegFull: require('@/assets/muscle-selection-icons/man.back_muscle_group_parts/man_back_lower_leg_full.png'),
 	// semifendinosus: require('@/assets/muscle-selection-icons/man.back_muscle_group_parts/man_back_semifendinosus.png'),
-	// spineFull: require('@/assets/muscle-selection-icons/man.back_muscle_group_parts/man_back_spine_full.png'),
+	spineFull: require('@/assets/muscle-selection-icons/man-back-muscle-group-parts/man_back_spine_full.png'),
 	// thoracolumbarFascia: require('@/assets/muscle-selection-icons/man.back_muscle_group_parts/man_back_thoracolumbar_fascia.png'),
 	// trapeziusFull: require('@/assets/muscle-selection-icons/man.back_muscle_group_parts/man_back_trapezius_full.png'),
 	// triceps: require('@/assets/muscle-selection-icons/man.back_muscle_group_parts/man_back_triceps.png'),

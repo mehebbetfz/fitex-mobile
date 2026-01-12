@@ -85,7 +85,7 @@ const MUSCLE_DATA = [
 			'leftMiddleDeltoid',
 			'rightMiddleDeltoid',
 		],
-		icon: manFrontMuscleGroupParts.gastrocnemius,
+		icon: manFrontMuscleGroupParts.deltoidsFull,
 	},
 	{
 		id: '5',
@@ -238,6 +238,7 @@ export default function RecoveryTab() {
 	const renderModelTab = () => (
 		<View style={styles.tabContainer}>
 			<View style={styles.diagramContainer}>
+				<Text style={styles.sectionTitle}>Статус мышц</Text>
 				<View style={styles.bodyImageContainer}>
 					<Image
 						style={styles.bodyBackground}
@@ -253,6 +254,35 @@ export default function RecoveryTab() {
 							resizeMode='contain'
 						/>
 					))}
+				</View>
+				<TouchableOpacity
+					style={styles.toggleButton}
+					onPress={() => setSelectedMuscle(null)}
+				>
+					<Text style={styles.toggleButtonText}>
+						{selectedMuscle ? 'Показать все мышцы' : 'Смотреть все'}
+					</Text>
+				</TouchableOpacity>
+
+				<View style={styles.legend}>
+					<View style={styles.legendItem}>
+						<View
+							style={[styles.legendColor, { backgroundColor: '#34C759' }]}
+						/>
+						<Text style={styles.legendText}>Восстановлено</Text>
+					</View>
+					<View style={{ ...styles.legendItem }}>
+						<View
+							style={[styles.legendColor, { backgroundColor: '#FFCC00' }]}
+						/>
+						<Text style={styles.legendText}>Восстанавливается</Text>
+					</View>
+					<View style={styles.legendItem}>
+						<View
+							style={[styles.legendColor, { backgroundColor: '#FF3B30' }]}
+						/>
+						<Text style={styles.legendText}>Требует отдыха</Text>
+					</View>
 				</View>
 
 				<View style={{ width: width - 40 }}>
@@ -305,36 +335,6 @@ export default function RecoveryTab() {
 						)}
 					/>
 				</View>
-
-				<View style={styles.legend}>
-					<View style={styles.legendItem}>
-						<View
-							style={[styles.legendColor, { backgroundColor: '#34C759' }]}
-						/>
-						<Text style={styles.legendText}>Восстановлено</Text>
-					</View>
-					<View style={{ ...styles.legendItem, marginHorizontal: 2 }}>
-						<View
-							style={[styles.legendColor, { backgroundColor: '#FFCC00' }]}
-						/>
-						<Text style={styles.legendText}>Восстанавливается</Text>
-					</View>
-					<View style={styles.legendItem}>
-						<View
-							style={[styles.legendColor, { backgroundColor: '#FF3B30' }]}
-						/>
-						<Text style={styles.legendText}>Требует отдыха</Text>
-					</View>
-				</View>
-
-				<TouchableOpacity
-					style={styles.toggleButton}
-					onPress={() => setSelectedMuscle(null)}
-				>
-					<Text style={styles.toggleButtonText}>
-						{selectedMuscle ? 'Показать все мышцы' : 'Смотреть все'}
-					</Text>
-				</TouchableOpacity>
 			</View>
 		</View>
 	)
@@ -433,6 +433,7 @@ const styles = StyleSheet.create({
 		marginRight: 12,
 		backgroundColor: '#333',
 		borderRadius: 10,
+		overflow: 'hidden',
 	},
 
 	muscleIconText: {
@@ -505,6 +506,7 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 20,
 	},
 	sectionTitle: {
+		paddingTop: 10,
 		fontSize: 20,
 		fontWeight: '700',
 		color: '#FFFFFF',
@@ -558,7 +560,7 @@ const styles = StyleSheet.create({
 	},
 	bodyImageContainer: {
 		width: '100%',
-		height: 500,
+		height: 450,
 		position: 'relative',
 		alignItems: 'center',
 		justifyContent: 'center',
@@ -575,12 +577,10 @@ const styles = StyleSheet.create({
 		position: 'absolute',
 	},
 	legend: {
-		display: 'flex',
-		flexDirection: 'row',
-		justifyContent: 'space-around',
-		marginTop: 20,
+		width: width - 70,
 	},
 	legendItem: {
+		width: '100%',
 		flexDirection: 'row',
 		alignItems: 'center',
 		padding: 5,
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
 		color: '#8E8E93',
 	},
 	toggleButton: {
-		marginTop: 20,
+		marginBottom: 20,
 		paddingVertical: 10,
 		paddingHorizontal: 20,
 		backgroundColor: '#2C2C2E',
