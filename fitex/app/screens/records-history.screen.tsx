@@ -1,7 +1,10 @@
+import * as db from '@/scripts/database'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useFocusEffect, useRouter } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
 import {
+	ActivityIndicator,
+	Alert,
 	FlatList,
 	Modal,
 	StyleSheet,
@@ -23,97 +26,6 @@ interface Record {
 	improvement?: string
 }
 
-const RECORDS_DATA: Record[] = [
-	{
-		id: '1',
-		exercise: 'Жим лежа',
-		weight: '120 кг',
-		date: '15.12.2024',
-		trend: 'up',
-		category: 'strength',
-		previousRecord: '115 кг',
-		improvement: '+5 кг',
-		notes: '3 подхода по 5 повторений',
-	},
-	{
-		id: '2',
-		exercise: 'Приседания',
-		weight: '160 кг',
-		date: '14.12.2024',
-		trend: 'up',
-		category: 'strength',
-		previousRecord: '155 кг',
-		improvement: '+5 кг',
-		notes: 'С правильной техникой',
-	},
-	{
-		id: '3',
-		exercise: 'Становая тяга',
-		weight: '180 кг',
-		date: '12.12.2024',
-		trend: 'stable',
-		category: 'strength',
-		previousRecord: '180 кг',
-		improvement: '0 кг',
-		notes: 'Максимальная нагрузка',
-	},
-	{
-		id: '4',
-		exercise: 'Подтягивания с весом',
-		weight: '+30 кг',
-		date: '10.12.2024',
-		trend: 'up',
-		category: 'strength',
-		previousRecord: '+25 кг',
-		improvement: '+5 кг',
-		notes: '8 повторений',
-	},
-	{
-		id: '5',
-		exercise: 'Бег 5 км',
-		weight: '22:15',
-		date: '08.12.2024',
-		trend: 'up',
-		category: 'cardio',
-		previousRecord: '23:45',
-		improvement: '-1:30',
-		notes: 'Личный рекорд по времени',
-	},
-	{
-		id: '6',
-		exercise: 'Отжимания',
-		weight: '45 раз',
-		date: '05.12.2024',
-		trend: 'up',
-		category: 'endurance',
-		previousRecord: '40 раз',
-		improvement: '+5 раз',
-		notes: 'Без остановки',
-	},
-	{
-		id: '7',
-		exercise: 'Жим штанги стоя',
-		weight: '70 кг',
-		date: '01.12.2024',
-		trend: 'up',
-		category: 'strength',
-		previousRecord: '65 кг',
-		improvement: '+5 кг',
-		notes: '3 подхода по 8',
-	},
-	{
-		id: '8',
-		exercise: 'Планка',
-		weight: '5:30',
-		date: '28.11.2024',
-		trend: 'up',
-		category: 'endurance',
-		previousRecord: '4:45',
-		improvement: '+45 сек',
-		notes: 'Максимальное время',
-	},
-]
-
 const CATEGORIES = [
 	{ id: 'all', name: 'Все', icon: 'list' },
 	{ id: 'strength', name: 'Сила', icon: 'barbell' },
@@ -126,9 +38,45 @@ export default function RecordsHistoryScreen() {
 	const [selectedCategory, setSelectedCategory] = useState('all')
 	const [selectedRecord, setSelectedRecord] = useState<Record | null>(null)
 	const [modalVisible, setModalVisible] = useState(false)
+	const [records, setRecords] = useState<Record[]>([])
+	const [loading, setLoading] = useState(true)
 
-	const filteredRecords = RECORDS_DATA.filter(
-		record => selectedCategory === 'all' || record.category === selectedCategory
+	useEffect(() => {
+		loadRecords()
+	}, [selectedCategory])
+
+	const loadRecords = async () => {
+		try {
+			setLoading(true)
+			const dbRecords = await db.getPersonalRecords(
+				selectedCategory !== 'all' ? selectedCategory : undefined,
+			)
+
+			const formattedRecords: Record[] = dbRecords.map((r, index) => {
+				return {
+					id: r.id?.toString() || index.toString(),
+					exercise: r.exercise,
+					weight: r.weight,
+					date: r.date,
+					trend: r.trend,
+					category: r.category,
+					notes: r.notes,
+					previousRecord: r.previous_record,
+					improvement: r.improvement,
+				}
+			})
+
+			setRecords(formattedRecords)
+		} catch (error) {
+			console.error('Error loading records:', error)
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	const filteredRecords = records.filter(
+		record =>
+			selectedCategory === 'all' || record.category === selectedCategory,
 	)
 
 	const getCategoryColor = (category: string) => {
@@ -181,24 +129,28 @@ export default function RecordsHistoryScreen() {
 			<View style={styles.recordDetails}>
 				<View style={styles.dateContainer}>
 					<Ionicons name='calendar' size={14} color='#8E8E93' />
-					<Text style={styles.dateText}>{item.date}</Text>
-				</View>
-
-				<View style={styles.improvementContainer}>
-					<Ionicons
-						name={getTrendIcon(item.trend).name as any}
-						size={14}
-						color={getTrendIcon(item.trend).color}
-					/>
-					<Text
-						style={[
-							styles.improvementText,
-							{ color: getTrendIcon(item.trend).color },
-						]}
-					>
-						{item.improvement}
+					<Text style={styles.dateText}>
+						{db.formatDate(item.date) || item.date}
 					</Text>
 				</View>
+
+				{item.improvement && (
+					<View style={styles.improvementContainer}>
+						<Ionicons
+							name={getTrendIcon(item.trend).name as any}
+							size={14}
+							color={getTrendIcon(item.trend).color}
+						/>
+						<Text
+							style={[
+								styles.improvementText,
+								{ color: getTrendIcon(item.trend).color },
+							]}
+						>
+							{item.improvement}
+						</Text>
+					</View>
+				)}
 			</View>
 
 			{item.notes && (
@@ -207,6 +159,24 @@ export default function RecordsHistoryScreen() {
 				</Text>
 			)}
 		</TouchableOpacity>
+	)
+
+	const handleAddRecord = () => {
+		router.push('/(routes)/add-record')
+	}
+
+	const handleEditRecord = (id: string) => {
+		router.push(`/(routes)/edit-record/${id}`)
+	}
+
+	useFocusEffect(
+		useCallback(() => {
+			// Очистка при размонтировании (опционально)
+			loadRecords()
+			return () => {
+				// Здесь можно выполнить очистку, если нужно
+			}
+		}, []),
 	)
 
 	return (
@@ -220,7 +190,7 @@ export default function RecordsHistoryScreen() {
 					<Ionicons name='arrow-back' size={24} color='#FFFFFF' />
 				</TouchableOpacity>
 				<Text style={styles.headerTitle}>История рекордов</Text>
-				<TouchableOpacity style={styles.addButton}>
+				<TouchableOpacity style={styles.addButton} onPress={handleAddRecord}>
 					<Ionicons name='add' size={24} color='#34C759' />
 				</TouchableOpacity>
 			</View>
@@ -262,40 +232,46 @@ export default function RecordsHistoryScreen() {
 			{/* Статистика */}
 			<View style={styles.statsContainer}>
 				<View style={styles.statCard}>
-					<Text style={styles.statValue}>{RECORDS_DATA.length.toString()}</Text>
+					<Text style={styles.statValue}>{records.length.toString()}</Text>
 					<Text style={styles.statLabel}>Всего рекордов</Text>
 				</View>
 				<View style={styles.statCard}>
 					<Text style={[styles.statValue, { color: '#34C759' }]}>
-						{RECORDS_DATA.filter(r => r.trend === 'up').length.toString()}
+						{records.filter(r => r.trend === 'up').length.toString()}
 					</Text>
 					<Text style={styles.statLabel}>Улучшено</Text>
 				</View>
 				<View style={styles.statCard}>
 					<Text style={[styles.statValue, { color: '#FF9500' }]}>
-						{RECORDS_DATA.filter(
-							r => r.category === 'strength'
-						).length.toString()}
+						{records.filter(r => r.category === 'strength').length.toString()}
 					</Text>
 					<Text style={styles.statLabel}>Силовых</Text>
 				</View>
 			</View>
 
 			{/* Список рекордов */}
-			<FlatList
-				data={filteredRecords}
-				renderItem={renderRecordItem}
-				keyExtractor={item => item.id}
-				contentContainerStyle={styles.listContainer}
-				showsVerticalScrollIndicator={false}
-				ListEmptyComponent={
-					<View style={styles.emptyContainer}>
-						<Ionicons name='trophy' size={64} color='#2C2C2E' />
-						<Text style={styles.emptyText}>Нет рекордов</Text>
-						<Text style={styles.emptySubtext}>Добавьте свой первый рекорд</Text>
-					</View>
-				}
-			/>
+			{loading ? (
+				<View style={styles.loadingContainer}>
+					<ActivityIndicator size='large' color='#34C759' />
+				</View>
+			) : (
+				<FlatList
+					data={filteredRecords}
+					renderItem={renderRecordItem}
+					keyExtractor={item => item.id}
+					contentContainerStyle={styles.listContainer}
+					showsVerticalScrollIndicator={false}
+					ListEmptyComponent={
+						<View style={styles.emptyContainer}>
+							<Ionicons name='trophy' size={64} color='#2C2C2E' />
+							<Text style={styles.emptyText}>Нет рекордов</Text>
+							<Text style={styles.emptySubtext}>
+								Добавьте свой первый рекорд
+							</Text>
+						</View>
+					}
+				/>
+			)}
 
 			{/* Модальное окно с деталями */}
 			<Modal
@@ -331,7 +307,7 @@ export default function RecordsHistoryScreen() {
 										<View style={styles.modalStat}>
 											<Text style={styles.modalStatLabel}>Предыдущий</Text>
 											<Text style={styles.modalStatValue}>
-												{selectedRecord.previousRecord}
+												{selectedRecord.previousRecord || 'Нет данных'}
 											</Text>
 										</View>
 									</View>
@@ -353,7 +329,7 @@ export default function RecordsHistoryScreen() {
 														},
 													]}
 												>
-													{selectedRecord.improvement}
+													{selectedRecord.improvement || '0'}
 												</Text>
 											</View>
 										</View>
@@ -362,7 +338,8 @@ export default function RecordsHistoryScreen() {
 											<View style={styles.dateBadge}>
 												<Ionicons name='calendar' size={16} color='#8E8E93' />
 												<Text style={styles.dateText}>
-													{selectedRecord.date}
+													{db.formatDate(selectedRecord.date) ||
+														selectedRecord.date}
 												</Text>
 											</View>
 										</View>
@@ -382,7 +359,7 @@ export default function RecordsHistoryScreen() {
 											style={styles.editButton}
 											onPress={() => {
 												setModalVisible(false)
-												// Здесь будет навигация на редактирование
+												handleEditRecord(selectedRecord.id)
 											}}
 										>
 											<Ionicons name='create' size={20} color='#FFFFFF' />
@@ -397,7 +374,7 @@ export default function RecordsHistoryScreen() {
 			</Modal>
 
 			{/* Кнопка добавления */}
-			<TouchableOpacity style={styles.fab} onPress={() => {}}>
+			<TouchableOpacity style={styles.fab} onPress={handleAddRecord}>
 				<Ionicons name='add' size={24} color='#FFFFFF' />
 			</TouchableOpacity>
 		</SafeAreaView>
@@ -413,7 +390,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingVertical: 16,
 		borderBottomWidth: 1,
 		borderBottomColor: '#2C2C2E',
@@ -435,7 +412,7 @@ const styles = StyleSheet.create({
 		borderBottomColor: '#2C2C2E',
 	},
 	categoriesList: {
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		gap: 8,
 	},
 	categoryButton: {
@@ -460,7 +437,7 @@ const styles = StyleSheet.create({
 	},
 	statsContainer: {
 		flexDirection: 'row',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingVertical: 16,
 		gap: 12,
 	},
@@ -482,7 +459,7 @@ const styles = StyleSheet.create({
 		color: '#8E8E93',
 	},
 	listContainer: {
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingTop: 8,
 		paddingBottom: 100,
 	},
@@ -554,6 +531,11 @@ const styles = StyleSheet.create({
 		color: '#B0B0B0',
 		fontStyle: 'italic',
 	},
+	loadingContainer: {
+		flex: 1,
+		justifyContent: 'center',
+		alignItems: 'center',
+	},
 	emptyContainer: {
 		alignItems: 'center',
 		justifyContent: 'center',
@@ -586,7 +568,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		alignItems: 'center',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		marginBottom: 24,
 	},
 	modalTitle: {
@@ -599,7 +581,7 @@ const styles = StyleSheet.create({
 		padding: 4,
 	},
 	modalBody: {
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingBottom: 40,
 	},
 	modalStatRow: {

@@ -262,7 +262,7 @@ export default function FullHistoryScreen() {
 
 		Object.keys(groupedWorkouts).forEach(month => {
 			const monthWorkouts = groupedWorkouts[month].filter(workout =>
-				workout.muscleGroups.includes(selectedFilter)
+				workout.muscleGroups.includes(selectedFilter),
 			)
 
 			if (monthWorkouts.length > 0) {
@@ -336,7 +336,7 @@ export default function FullHistoryScreen() {
 
 		const totalVolume = workouts.reduce(
 			(sum, workout) => sum + workout.volume,
-			0
+			0,
 		)
 		const totalWorkouts = workouts.length
 		const totalTime = workouts.reduce((sum, workout) => {
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
 	header: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingTop: 20,
 		paddingBottom: 16,
 		borderBottomWidth: 1,
@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
 	},
 	filtersSection: {
 		paddingVertical: 16,
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		borderBottomWidth: 1,
 		borderBottomColor: '#2C2C2E',
 	},
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
 		fontWeight: '600',
 	},
 	listContent: {
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingTop: 16,
 		paddingBottom: 40,
 	},

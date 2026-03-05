@@ -162,7 +162,7 @@ export default function WorkoutDetailScreen() {
 	const { id } = useLocalSearchParams<{ id: string }>()
 	const [workout, setWorkout] = useState<WorkoutDetail | null>(null)
 	const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(
-		null
+		null,
 	)
 	const [showNotes, setShowNotes] = useState(false)
 
@@ -190,7 +190,7 @@ export default function WorkoutDetailScreen() {
 						// Здесь должна быть логика удаления
 					},
 				},
-			]
+			],
 		)
 	}
 
@@ -424,14 +424,14 @@ export default function WorkoutDetailScreen() {
 								<Text style={styles.tableFooterText}>
 									{selectedExercise.sets.reduce(
 										(sum, set) => sum + set.weight,
-										0
+										0,
 									)}{' '}
 									кг
 								</Text>
 								<Text style={styles.tableFooterText}>
 									{selectedExercise.sets.reduce(
 										(sum, set) => sum + set.reps,
-										0
+										0,
 									)}
 								</Text>
 								<Text style={styles.tableFooterText}>
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
 	header: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingTop: 20,
 		paddingBottom: 16,
 	},
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
 		textAlign: 'center',
 	},
 	section: {
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		marginBottom: 24,
 	},
 	sectionTitle: {
@@ -791,7 +791,7 @@ const styles = StyleSheet.create({
 	},
 	actionsContainer: {
 		flexDirection: 'row',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		marginBottom: 32,
 		gap: 12,
 	},
@@ -800,7 +800,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		backgroundColor: '#2C2C2E',
 		paddingVertical: 14,
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		borderRadius: 12,
 		alignItems: 'center',
 		justifyContent: 'center',
@@ -816,7 +816,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		backgroundColor: 'rgba(0, 255, 72, 0.1)',
 		paddingVertical: 14,
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		borderRadius: 12,
 		alignItems: 'center',
 		justifyContent: 'center',
@@ -833,7 +833,7 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		color: '#00ff48',
 		fontWeight: '600',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingVertical: 10,
 	},
 })

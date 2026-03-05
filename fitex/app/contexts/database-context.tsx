@@ -2,6 +2,9 @@
 import {
 	addActiveExercise,
 	addActiveSet,
+	addBodyMeasurement,
+	addPersonalRecord,
+	addWorkout,
 	BodyMeasurement,
 	completeActiveWorkout,
 	createActiveWorkout,
@@ -11,28 +14,41 @@ import {
 	getActiveSetsFromDb,
 	getActiveWorkouts,
 	getBodyMeasurements,
-	getFullWorkoutDetails,
+	getExerciseHistory,
+	getExercisePersonalRecords,
+	getFullWorkoutDetails, // Добавляем импорт
+	getLatestBodyMeasurements,
 	getPersonalRecords,
 	getRecoveryData,
 	getUserProfile,
 	getWorkouts,
+	getWorkoutStats,
 	initActiveWorkoutTables,
 	initDatabase,
+	markAsSynced,
+	openDatabase,
 	PersonalRecord,
 	RecoveryData,
+	softDeleteWorkout,
+	updateActiveExerciseCollapsed,
 	updateActiveSet,
 	updateActiveWorkout,
-	UserProfile,
+	UserProfile, // Добавляем импорт
 	Workout,
 	WorkoutStats,
 } from '@/scripts/database'
+import { api } from '@/services/api'
+import * as Network from 'expo-network'
 import React, {
 	createContext,
 	useCallback,
 	useContext,
 	useEffect,
+	useRef,
 	useState,
 } from 'react'
+import { Alert } from 'react-native'
+import { useAuth } from './auth-context'
 
 interface DatabaseContextType {
 	isInitialized: boolean
@@ -45,10 +61,12 @@ interface DatabaseContextType {
 	activeWorkouts: any[]
 	isLoading: boolean
 
+	syncWithServer: (isPremium: boolean) => Promise<void>
+
 	// Методы для работы с тренировками
 	refreshWorkouts: (filter?: string) => Promise<void>
 	createNewWorkout: (name: string) => Promise<number>
-	completeWorkout: (id: number) => Promise<number>
+	completeWorkout: (workoutData: CompleteWorkoutData) => Promise<number>
 	getWorkoutDetails: (id: number) => Promise<any>
 	deleteWorkout: (id: number) => Promise<boolean>
 
@@ -63,6 +81,9 @@ interface DatabaseContextType {
 	getWorkoutExercises: (workoutId: number) => Promise<any[]>
 	getExerciseSets: (exerciseId: number) => Promise<any[]>
 
+	performInitialSync: (isPremium: boolean) => Promise<void>
+	syncUnsyncedData: (isPremium: boolean) => Promise<void>
+
 	// Методы для статистики
 	refreshStats: () => Promise<void>
 	refreshPersonalRecords: () => Promise<void>
@@ -73,10 +94,40 @@ interface DatabaseContextType {
 	getActiveWorkout: (id: number) => Promise<any>
 	getActiveExercises: (workoutId: number) => Promise<any[]>
 	getActiveSets: (exerciseId: number) => Promise<any[]>
+
+	fetchExerciseHistory: (exerciseName: string, limit?: number) => Promise<any[]>
+	getExerciseRecords: (exerciseName: string) => Promise<any>
+	calculateOneRepMax: (weight: number, reps: number) => number
+
+	updateExerciseCollapsed: (
+		exerciseId: number,
+		collapsed: boolean,
+	) => Promise<boolean>
+}
+
+interface ExerciseSetData {
+	set_number: number
+	weight: number
+	reps: number
+	completed: boolean
+}
+
+interface ExerciseData {
+	name: string
+	muscle_group: string
+	order_index: number
+	sets: ExerciseSetData[]
+}
+
+interface CompleteWorkoutData {
+	name: string
+	duration: number
+	notes: string
+	exercises: ExerciseData[]
 }
 
 const DatabaseContext = createContext<DatabaseContextType | undefined>(
-	undefined
+	undefined,
 )
 
 export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -87,7 +138,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 	const [stats, setStats] = useState<WorkoutStats | null>(null)
 	const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([])
 	const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[]>(
-		[]
+		[],
 	)
 	const [recoveryData, setRecoveryData] = useState<RecoveryData[]>([])
 	const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
@@ -97,6 +148,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 
 	// Инициализация базы данных
 	const initializeDatabase = useCallback(async () => {
+		if (isInitialized) return // ✅ не инициализировать повторно
+
 		try {
 			setIsLoading(true)
 			await initDatabase()
@@ -107,13 +160,34 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 		} finally {
 			setIsLoading(false)
 		}
+	}, [isInitialized])
+
+	// Обновляем функцию refreshStats в контексте:
+	const refreshStats = useCallback(async () => {
+		try {
+			const statsData = await getWorkoutStats()
+			setStats(statsData)
+		} catch (error) {
+			console.error('Error refreshing stats:', error)
+			throw error
+		}
+	}, [])
+
+	// Обновляем функцию refreshBodyMeasurements:
+	const refreshBodyMeasurements = useCallback(async () => {
+		try {
+			const data = await getLatestBodyMeasurements()
+			setBodyMeasurements(data)
+		} catch (error) {
+			console.error('Error refreshing body measurements:', error)
+			throw error
+		}
 	}, [])
 
 	// Обновление всех данных
 	const refreshAllData = useCallback(async () => {
 		try {
 			await Promise.all([
-				// refreshWorkouts(),
 				refreshStats(),
 				refreshPersonalRecords(),
 				refreshBodyMeasurements(),
@@ -126,6 +200,481 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 		}
 	}, [])
 
+	// В теле DatabaseProvider добавьте:
+	const fetchExerciseHistory = useCallback(
+		async (exerciseName: string, limit: number = 5) => {
+			try {
+				return await getExerciseHistory(exerciseName, limit)
+			} catch (error) {
+				console.error('Error fetching exercise history:', error)
+				throw error
+			}
+		},
+		[],
+	)
+
+	const { user } = useAuth()
+
+	// Добавить в DatabaseProvider после useAuth():
+	const hasSyncedOnStartup = useRef(false)
+
+	// Отправка несинхронизированных данных — вызывается при старте
+	const syncUnsyncedData = useCallback(async (isPremium: boolean) => {
+		if (!isPremium) return
+
+		const networkState = await Network.getNetworkStateAsync()
+		if (!networkState.isConnected || !networkState.isInternetReachable) return
+
+		try {
+			const unsyncedWorkouts = await getWorkouts(undefined, undefined, {
+				synced: false,
+			})
+			const unsyncedMeasurements = await getBodyMeasurements({ synced: false })
+			const unsyncedRecords = await getPersonalRecords({ synced: false })
+
+			const hasUnsynced =
+				unsyncedWorkouts.length > 0 ||
+				unsyncedMeasurements.length > 0 ||
+				unsyncedRecords.length > 0
+
+			if (!hasUnsynced) return
+
+			setIsLoading(true)
+
+			await api.post('/sync/upload', {
+				workouts: unsyncedWorkouts,
+				bodyMeasurements: unsyncedMeasurements,
+				personalRecords: unsyncedRecords,
+			})
+
+			await markAsSynced(
+				'workouts',
+				unsyncedWorkouts
+					.map(w => w.id)
+					.filter((id): id is number => id !== undefined),
+			)
+			await markAsSynced(
+				'body_measurements',
+				unsyncedMeasurements
+					.map(m => m.id)
+					.filter((id): id is number => id !== undefined),
+			)
+			await markAsSynced(
+				'personal_records',
+				unsyncedRecords
+					.map(r => r.id)
+					.filter((id): id is number => id !== undefined),
+			)
+
+			console.log('Auto-sync completed')
+		} catch (error) {
+			console.error('Auto-sync error:', error)
+		} finally {
+			setIsLoading(false)
+		}
+	}, [])
+
+	// DatabaseContext.tsx
+
+	const mergeServerData = useCallback(
+		async (serverData: {
+			workouts?: any[]
+			bodyMeasurements?: any[]
+			personalRecords?: any[]
+		}) => {
+			const db = openDatabase()
+
+			await db.withTransactionAsync(async () => {
+				// ===== ТРЕНИРОВКИ =====
+				for (const serverWorkout of serverData.workouts ?? []) {
+					const localId = serverWorkout.localId
+
+					if (serverWorkout.isDeleted) {
+						await db.runAsync('DELETE FROM workouts WHERE id = ?', localId)
+						continue
+					}
+
+					const local = await db.getFirstAsync<{ id: number; synced: number }>(
+						'SELECT id, synced FROM workouts WHERE id = ?',
+						localId,
+					)
+
+					if (!local) {
+						// Записи нет локально — вставляем с сервера
+						await db.runAsync(
+							`
+          INSERT INTO workouts
+            (id, date, time, duration, type, muscle_groups, exercises_count, sets_count, volume, notes, rating, synced)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        `,
+							[
+								localId,
+								serverWorkout.date,
+								serverWorkout.time,
+								serverWorkout.duration,
+								serverWorkout.type,
+								serverWorkout.muscleGroups ?? serverWorkout.muscle_groups,
+								serverWorkout.exercisesCount ?? serverWorkout.exercises_count,
+								serverWorkout.setsCount ?? serverWorkout.sets_count,
+								serverWorkout.volume,
+								serverWorkout.notes ?? null,
+								serverWorkout.rating ?? null,
+							],
+						)
+					} else if (local.synced === 1) {
+						// Локальная версия уже синхронизирована — обновляем данными с сервера
+						await db.runAsync(
+							`
+          UPDATE workouts SET
+            date = ?, time = ?, duration = ?, type = ?,
+            muscle_groups = ?, exercises_count = ?, sets_count = ?,
+            volume = ?, notes = ?, rating = ?, synced = 1
+          WHERE id = ?
+        `,
+							[
+								serverWorkout.date,
+								serverWorkout.time,
+								serverWorkout.duration,
+								serverWorkout.type,
+								serverWorkout.muscleGroups ?? serverWorkout.muscle_groups,
+								serverWorkout.exercisesCount ?? serverWorkout.exercises_count,
+								serverWorkout.setsCount ?? serverWorkout.sets_count,
+								serverWorkout.volume,
+								serverWorkout.notes ?? null,
+								serverWorkout.rating ?? null,
+								localId,
+							],
+						)
+					}
+					// synced === 0 — локальные изменения не трогаем, они уйдут в upload
+				}
+
+				// ===== ЗАМЕРЫ ТЕЛА =====
+				for (const serverMeasurement of serverData.bodyMeasurements ?? []) {
+					const localId = serverMeasurement.localId
+
+					if (serverMeasurement.isDeleted) {
+						await db.runAsync(
+							'DELETE FROM body_measurements WHERE id = ?',
+							localId,
+						)
+						continue
+					}
+
+					const local = await db.getFirstAsync<{ id: number; synced: number }>(
+						'SELECT id, synced FROM body_measurements WHERE id = ?',
+						localId,
+					)
+
+					if (!local) {
+						await db.runAsync(
+							`
+          INSERT INTO body_measurements (id, name, value, unit, date, trend, goal, synced)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        `,
+							[
+								localId,
+								serverMeasurement.name,
+								serverMeasurement.value,
+								serverMeasurement.unit,
+								serverMeasurement.date,
+								serverMeasurement.trend,
+								serverMeasurement.goal ?? null,
+							],
+						)
+					} else if (local.synced === 1) {
+						await db.runAsync(
+							`
+          UPDATE body_measurements SET
+            name = ?, value = ?, unit = ?, date = ?, trend = ?, goal = ?, synced = 1
+          WHERE id = ?
+        `,
+							[
+								serverMeasurement.name,
+								serverMeasurement.value,
+								serverMeasurement.unit,
+								serverMeasurement.date,
+								serverMeasurement.trend,
+								serverMeasurement.goal ?? null,
+								localId,
+							],
+						)
+					}
+				}
+
+				// ===== ЛИЧНЫЕ РЕКОРДЫ =====
+				for (const serverRecord of serverData.personalRecords ?? []) {
+					const localId = serverRecord.localId
+
+					if (serverRecord.isDeleted) {
+						await db.runAsync(
+							'DELETE FROM personal_records WHERE id = ?',
+							localId,
+						)
+						continue
+					}
+
+					const local = await db.getFirstAsync<{ id: number; synced: number }>(
+						'SELECT id, synced FROM personal_records WHERE id = ?',
+						localId,
+					)
+
+					if (!local) {
+						await db.runAsync(
+							`
+          INSERT INTO personal_records
+            (id, exercise, weight, date, trend, category, notes, previous_record, improvement, synced)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        `,
+							[
+								localId,
+								serverRecord.exercise,
+								serverRecord.weight,
+								serverRecord.date,
+								serverRecord.trend,
+								serverRecord.category,
+								serverRecord.notes ?? null,
+								serverRecord.previousRecord ??
+									serverRecord.previous_record ??
+									null,
+								serverRecord.improvement ?? null,
+							],
+						)
+					} else if (local.synced === 1) {
+						await db.runAsync(
+							`
+          UPDATE personal_records SET
+            exercise = ?, weight = ?, date = ?, trend = ?, category = ?,
+            notes = ?, previous_record = ?, improvement = ?, synced = 1
+          WHERE id = ?
+        `,
+							[
+								serverRecord.exercise,
+								serverRecord.weight,
+								serverRecord.date,
+								serverRecord.trend,
+								serverRecord.category,
+								serverRecord.notes ?? null,
+								serverRecord.previousRecord ??
+									serverRecord.previous_record ??
+									null,
+								serverRecord.improvement ?? null,
+								localId,
+							],
+						)
+					}
+				}
+			})
+		},
+		[],
+	)
+
+	// Полная двусторонняя синхронизация — при логине или смене аккаунта
+	const performInitialSync = useCallback(
+		async (isPremium: boolean) => {
+			if (!isPremium) return
+
+			const networkState = await Network.getNetworkStateAsync()
+			if (!networkState.isConnected) return
+
+			try {
+				setIsLoading(true)
+
+				// Шаг 1: Скачиваем всё с сервера и мержим
+				const { data: serverData } = await api.get('/sync/download')
+				await mergeServerData(serverData)
+
+				// Шаг 2: Отправляем локальные несинхронизированные данные
+				const unsyncedWorkouts = await getWorkouts(undefined, undefined, {
+					synced: false,
+				})
+				const unsyncedMeasurements = await getBodyMeasurements({
+					synced: false,
+				})
+				const unsyncedRecords = await getPersonalRecords({ synced: false })
+
+				const hasUnsynced =
+					unsyncedWorkouts.length > 0 ||
+					unsyncedMeasurements.length > 0 ||
+					unsyncedRecords.length > 0
+
+				if (hasUnsynced) {
+					await api.post('/sync/upload', {
+						workouts: unsyncedWorkouts,
+						bodyMeasurements: unsyncedMeasurements,
+						personalRecords: unsyncedRecords,
+					})
+
+					await markAsSynced(
+						'workouts',
+						unsyncedWorkouts
+							.map(w => w.id)
+							.filter((id): id is number => id !== undefined),
+					)
+					await markAsSynced(
+						'body_measurements',
+						unsyncedMeasurements
+							.map(m => m.id)
+							.filter((id): id is number => id !== undefined),
+					)
+					await markAsSynced(
+						'personal_records',
+						unsyncedRecords
+							.map(r => r.id)
+							.filter((id): id is number => id !== undefined),
+					)
+				}
+
+				// Шаг 3: Обновляем UI
+				await refreshAllData()
+			} catch (error) {
+				console.error('Initial sync error:', error)
+			} finally {
+				setIsLoading(false)
+			}
+		},
+		[mergeServerData, refreshAllData],
+	)
+
+	// Ручная синхронизация (кнопка в профиле)
+	const syncWithServer = useCallback(
+		async (isPremium: boolean) => {
+			if (!isPremium) {
+				Alert.alert('Только для премиум', 'Оформите подписку для синхронизации')
+				return
+			}
+
+			const networkState = await Network.getNetworkStateAsync()
+			if (!networkState.isConnected || !networkState.isInternetReachable) {
+				Alert.alert(
+					'Нет интернета',
+					'Подключитесь к интернету для синхронизации',
+				)
+				return
+			}
+
+			setIsLoading(true)
+			try {
+				// Скачиваем и мержим
+				const { data: serverData } = await api.get('/sync/download')
+				await mergeServerData(serverData)
+
+				// Загружаем все локальные данные на сервер
+				const allWorkouts = await getWorkouts()
+				const allMeasurements = await getBodyMeasurements()
+				const allRecords = await getPersonalRecords()
+
+				await api.post('/sync/upload', {
+					workouts: allWorkouts,
+					bodyMeasurements: allMeasurements,
+					personalRecords: allRecords,
+				})
+
+				// Помечаем всё как синхронизированное
+				await markAsSynced(
+					'workouts',
+					allWorkouts
+						.map(w => w.id)
+						.filter((id): id is number => id !== undefined),
+				)
+				await markAsSynced(
+					'body_measurements',
+					allMeasurements
+						.map(m => m.id)
+						.filter((id): id is number => id !== undefined),
+				)
+				await markAsSynced(
+					'personal_records',
+					allRecords
+						.map(r => r.id)
+						.filter((id): id is number => id !== undefined),
+				)
+
+				await refreshAllData()
+				Alert.alert('Синхронизация завершена')
+			} catch (error) {
+				console.error('Sync error', error)
+				Alert.alert(
+					'Ошибка синхронизации',
+					'Не удалось синхронизировать данные',
+				)
+			} finally {
+				setIsLoading(false)
+			}
+		},
+		[mergeServerData, refreshAllData],
+	)
+
+	const importServerData = useCallback(
+		async (serverData: {
+			workouts?: any[]
+			bodyMeasurements?: any[]
+			personalRecords?: any[]
+		}) => {
+			const db = openDatabase()
+
+			try {
+				await db.withTransactionAsync(async () => {
+					// Очищаем таблицы перед импортом
+					await db.runAsync('DELETE FROM workouts')
+					await db.runAsync('DELETE FROM body_measurements')
+					await db.runAsync('DELETE FROM personal_records')
+
+					// Импорт тренировок
+					if (serverData.workouts && serverData.workouts.length > 0) {
+						for (const workout of serverData.workouts) {
+							await addWorkout(workout)
+						}
+					}
+
+					// Импорт замеров тела
+					if (
+						serverData.bodyMeasurements &&
+						serverData.bodyMeasurements.length > 0
+					) {
+						for (const measurement of serverData.bodyMeasurements) {
+							await addBodyMeasurement(measurement)
+						}
+					}
+
+					// Импорт личных рекордов
+					if (
+						serverData.personalRecords &&
+						serverData.personalRecords.length > 0
+					) {
+						for (const record of serverData.personalRecords) {
+							await addPersonalRecord(record)
+						}
+					}
+				})
+
+				console.log('Серверные данные успешно импортированы в локальную БД')
+			} catch (error) {
+				console.error('Ошибка при импорте данных с сервера:', error)
+				throw error
+				// или можно здесь показать уведомление пользователю, например:
+				// Alert.alert('Ошибка', 'Не удалось загрузить данные с сервера')
+			}
+		},
+		[], // зависимости useCallback — если addWorkout и другие функции стабильны, можно оставить пустым
+	)
+
+	const getExerciseRecords = useCallback(async (exerciseName: string) => {
+		try {
+			return await getExercisePersonalRecords(exerciseName)
+		} catch (error) {
+			console.error('Error getting exercise records:', error)
+			throw error
+		}
+	}, [])
+
+	const calculateOneRepMax = useCallback(
+		(weight: number, reps: number): number => {
+			return calculateOneRepMax(weight, reps)
+		},
+		[],
+	)
+
 	// Методы для тренировок
 	const refreshWorkouts = useCallback(async (filter?: string) => {
 		try {
@@ -133,7 +682,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 
 			const data = await getWorkouts(
 				undefined,
-				filter === 'all' ? undefined : filter
+				filter === 'all' ? undefined : filter,
 			)
 			setWorkouts(data)
 			return data
@@ -170,6 +719,22 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 		}
 	}, [])
 
+	const updateExerciseCollapsed = useCallback(
+		async (exerciseId: number, collapsed: boolean) => {
+			try {
+				const result = await updateActiveExerciseCollapsed(
+					exerciseId,
+					collapsed,
+				)
+				return result
+			} catch (error) {
+				console.error('Error updating exercise collapsed state:', error)
+				throw error
+			}
+		},
+		[],
+	)
+
 	const createNewWorkout = useCallback(async (name: string) => {
 		try {
 			const id = await createActiveWorkout(name)
@@ -181,16 +746,19 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 		}
 	}, [])
 
-	const completeWorkout = useCallback(async (id: number) => {
-		try {
-			const workoutId = await completeActiveWorkout(id)
-			await refreshAllData()
-			return workoutId
-		} catch (error) {
-			console.error('Error completing workout:', error)
-			throw error
-		}
-	}, [])
+	const completeWorkout = useCallback(
+		async (workoutData: CompleteWorkoutData) => {
+			try {
+				const workoutId = await completeActiveWorkout(workoutData)
+				await refreshAllData()
+				return workoutId
+			} catch (error) {
+				console.error('Error completing workout:', error)
+				throw error
+			}
+		},
+		[],
+	)
 
 	const getWorkoutDetails = useCallback(async (id: number) => {
 		try {
@@ -203,8 +771,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 
 	const deleteWorkout = useCallback(async (id: number) => {
 		try {
-			// Здесь нужно добавить функцию deleteWorkout в database.ts
-			// Пока что это заглушка
+			await softDeleteWorkout(id) // помечаем deleted_at, synced = 0
 			await refreshAllData()
 			return true
 		} catch (error) {
@@ -235,7 +802,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 				throw error
 			}
 		},
-		[]
+		[],
 	)
 
 	const addSetToExercise = useCallback(async (exerciseId: number, set: any) => {
@@ -303,44 +870,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 		}
 	}, [])
 
-	// Методы для статистики
-	const refreshStats = useCallback(async () => {
-		try {
-			// Нужно добавить функцию getWorkoutStats в database.ts
-			// Пока что это заглушка
-			const statsData = {
-				total_workouts: workouts.length,
-				total_sets: workouts.reduce((sum, w) => sum + w.sets_count, 0),
-				total_volume: workouts.reduce((sum, w) => sum + w.volume, 0),
-				streak_days: 7,
-				avg_duration:
-					Math.round(
-						workouts.reduce((sum, w) => sum + w.duration, 0) / workouts.length
-					) || 0,
-			}
-			setStats(statsData)
-		} catch (error) {
-			console.error('Error refreshing stats:', error)
-			throw error
-		}
-	}, [workouts])
-
 	const refreshPersonalRecords = useCallback(async () => {
 		try {
 			const data = await getPersonalRecords()
 			setPersonalRecords(data)
 		} catch (error) {
 			console.error('Error refreshing personal records:', error)
-			throw error
-		}
-	}, [])
-
-	const refreshBodyMeasurements = useCallback(async () => {
-		try {
-			const data = await getBodyMeasurements()
-			setBodyMeasurements(data)
-		} catch (error) {
-			console.error('Error refreshing body measurements:', error)
 			throw error
 		}
 	}, [])
@@ -414,6 +949,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 		getActiveWorkout,
 		getActiveExercises,
 		getActiveSets,
+		updateExerciseCollapsed,
+
+		fetchExerciseHistory,
+		getExerciseRecords,
+		calculateOneRepMax,
+		syncWithServer,
+		performInitialSync,
+		syncUnsyncedData,
 	}
 
 	return (

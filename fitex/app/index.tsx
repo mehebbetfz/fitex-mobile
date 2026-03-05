@@ -1,29 +1,17 @@
-import { initActiveWorkoutTables, initDatabase } from '@/scripts/database'
+// app/index.tsx
 import { Redirect } from 'expo-router'
-import { useEffect } from 'react'
+import { useAuth } from './contexts/auth-context'
 
 export default function Index() {
-	// if (isLoading) {
-	// 	return <LoadingScreen />
-	// }
+	const { user, isLoading } = useAuth()
 
-	// if (!user) {
-	//   return <Redirect href="/(public)" />;
-	// }
+	if (isLoading) {
+		return null
+	}
 
-	useEffect(() => {
-		const initializeApp = async () => {
-			try {
-				await initDatabase()
-				await initActiveWorkoutTables()
-				console.log('Database initialized')
-			} catch (error) {
-				console.error('Failed to initialize database:', error)
-			}
-		}
+	if (user) {
+		return <Redirect href='/(tabs)' />
+	}
 
-		initializeApp()
-	}, [])
-
-	return <Redirect href='/(auth)/(tabs)' />
+	return <Redirect href='/(auth)/login' />
 }

@@ -132,7 +132,7 @@ interface SetRowProps {
 		exerciseId: number,
 		setId: number,
 		field: 'weight' | 'reps',
-		value: string
+		value: string,
 	) => void
 	onRemove: (exerciseId: number, setId: number) => void
 }
@@ -145,14 +145,14 @@ const SetRow: React.FC<SetRowProps> = React.memo(
 			(value: string) => {
 				onUpdate(exerciseId, setId, 'weight', value)
 			},
-			[exerciseId, setId, onUpdate]
+			[exerciseId, setId, onUpdate],
 		)
 
 		const handleRepsChange = useCallback(
 			(value: string) => {
 				onUpdate(exerciseId, setId, 'reps', value)
 			},
-			[exerciseId, setId, onUpdate]
+			[exerciseId, setId, onUpdate],
 		)
 
 		return (
@@ -198,7 +198,7 @@ const SetRow: React.FC<SetRowProps> = React.memo(
 				</TouchableOpacity>
 			</View>
 		)
-	}
+	},
 )
 
 // Подкомпонент для упражнения
@@ -210,7 +210,7 @@ interface ExerciseItemProps {
 		exerciseId: number,
 		setId: number,
 		field: 'weight' | 'reps',
-		value: string
+		value: string,
 	) => void
 	onRemoveSet: (exerciseId: number, setId: number) => void
 	onAddSet: (exerciseId: number) => void
@@ -292,7 +292,7 @@ const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
 				)}
 			</View>
 		)
-	}
+	},
 )
 
 // Основной компонент
@@ -360,7 +360,7 @@ export default function WorkoutScreen() {
 						})),
 						collapsed: ex.collapsed,
 					}
-				})
+				}),
 			)
 			setExercises(exercisesWithSets)
 		} catch (error) {
@@ -399,7 +399,7 @@ export default function WorkoutScreen() {
 		const totalSets = exercises.reduce((sum, ex) => sum + ex.sets.length, 0)
 		const totalCompleted = exercises.reduce(
 			(sum, ex) => sum + ex.sets.filter(set => set.completed).length,
-			0
+			0,
 		)
 		return { totalCompleted, totalSets }
 	}, [exercises])
@@ -419,8 +419,8 @@ export default function WorkoutScreen() {
 			prev.map(exercise =>
 				exercise.id === exerciseId
 					? { ...exercise, collapsed: !exercise.collapsed }
-					: exercise
-			)
+					: exercise,
+			),
 		)
 	}, [])
 
@@ -434,7 +434,7 @@ export default function WorkoutScreen() {
 				Alert.alert('Ошибка', 'Не удалось обновить подход')
 			}
 		},
-		[]
+		[],
 	)
 
 	const handleUpdateSet = useCallback(
@@ -442,14 +442,14 @@ export default function WorkoutScreen() {
 			exerciseId: number,
 			setId: number,
 			field: 'weight' | 'reps',
-			value: string
+			value: string,
 		) => {
 			try {
 				// Валидация ввода
 				const numValue = parseFloat(value) || 0
 				const validatedValue = Math.min(
 					Math.max(numValue, 0),
-					field === 'weight' ? 999 : 999
+					field === 'weight' ? 999 : 999,
 				)
 
 				await updateSet(setId, { [field]: validatedValue })
@@ -459,7 +459,7 @@ export default function WorkoutScreen() {
 				Alert.alert('Ошибка', 'Не удалось обновить подход')
 			}
 		},
-		[]
+		[],
 	)
 
 	const handleRemoveSet = useCallback(
@@ -481,7 +481,7 @@ export default function WorkoutScreen() {
 				},
 			])
 		},
-		[]
+		[],
 	)
 
 	const handleAddSet = useCallback(
@@ -504,7 +504,7 @@ export default function WorkoutScreen() {
 				Alert.alert('Ошибка', 'Не удалось добавить подход')
 			}
 		},
-		[exercises]
+		[exercises],
 	)
 
 	const handleFinishWorkout = useCallback(async () => {
@@ -531,7 +531,7 @@ export default function WorkoutScreen() {
 						}
 					},
 				},
-			]
+			],
 		)
 	}, [exercises, totalSets, notes, workoutId, router])
 
@@ -593,7 +593,7 @@ export default function WorkoutScreen() {
 			handleUpdateSet,
 			handleRemoveSet,
 			handleAddSet,
-		]
+		],
 	)
 
 	const renderMuscleGroupItem = useCallback(
@@ -622,7 +622,7 @@ export default function WorkoutScreen() {
 				</Text>
 			</TouchableOpacity>
 		),
-		[imageError]
+		[imageError],
 	)
 
 	const renderExerciseListItem = useCallback(
@@ -640,7 +640,7 @@ export default function WorkoutScreen() {
 				/>
 			</TouchableOpacity>
 		),
-		[]
+		[],
 	)
 
 	return (
@@ -853,7 +853,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		alignItems: 'center',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingVertical: 16,
 		backgroundColor: COLORS.card,
 		borderBottomWidth: 1,

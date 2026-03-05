@@ -1,7 +1,9 @@
+import * as db from '@/scripts/database'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useFocusEffect, useRouter } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
 import {
+	Alert,
 	FlatList,
 	Modal,
 	StyleSheet,
@@ -14,162 +16,136 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 interface Measurement {
 	id: string
 	name: string
-	current: number
-	previous: number
+	value: number
 	unit: string
 	trend: 'up' | 'down' | 'stable'
 	date: string
-	change: number
+	change?: number
 	goal?: number
 	progress?: number
 }
 
-const MEASUREMENTS_DATA: Measurement[] = [
-	{
-		id: '1',
-		name: 'Грудь',
-		current: 102,
-		previous: 104,
-		unit: 'см',
-		trend: 'down',
-		date: '15.12.2024',
-		change: -2,
-		goal: 98,
-		progress: 85,
-	},
-	{
-		id: '2',
-		name: 'Талия',
-		current: 84,
-		previous: 87,
-		unit: 'см',
-		trend: 'down',
-		date: '15.12.2024',
-		change: -3,
-		goal: 80,
-		progress: 90,
-	},
-	{
-		id: '3',
-		name: 'Бедра',
-		current: 95,
-		previous: 93,
-		unit: 'см',
-		trend: 'up',
-		date: '15.12.2024',
-		change: 2,
-		goal: 97,
-		progress: 40,
-	},
-	{
-		id: '4',
-		name: 'Бицепс',
-		current: 38,
-		previous: 36,
-		unit: 'см',
-		trend: 'up',
-		date: '15.12.2024',
-		change: 2,
-		goal: 40,
-		progress: 95,
-	},
-	{
-		id: '5',
-		name: 'Трицепс',
-		current: 35,
-		previous: 33,
-		unit: 'см',
-		trend: 'up',
-		date: '15.12.2024',
-		change: 2,
-		goal: 36,
-		progress: 80,
-	},
-	{
-		id: '6',
-		name: 'Шея',
-		current: 40,
-		previous: 41,
-		unit: 'см',
-		trend: 'down',
-		date: '15.12.2024',
-		change: -1,
-		goal: 38,
-		progress: 60,
-	},
-	{
-		id: '7',
-		name: 'Икры',
-		current: 42,
-		previous: 40,
-		unit: 'см',
-		trend: 'up',
-		date: '15.12.2024',
-		change: 2,
-		goal: 45,
-		progress: 70,
-	},
-	{
-		id: '8',
-		name: 'Плечо',
-		current: 45,
-		previous: 43,
-		unit: 'см',
-		trend: 'up',
-		date: '15.12.2024',
-		change: 2,
-		goal: 48,
-		progress: 75,
-	},
-]
-
-const HISTORY_DATA = [
-	{
-		id: '1',
-		date: '15.12.2024',
-		measurements: [
-			{ name: 'Вес', value: '75.2 кг', change: '-0.5 кг' },
-			{ name: 'Талия', value: '84 см', change: '-1 см' },
-			{ name: 'Грудь', value: '102 см', change: '0 см' },
-		],
-	},
-	{
-		id: '2',
-		date: '01.12.2024',
-		measurements: [
-			{ name: 'Вес', value: '75.7 кг', change: '-0.8 кг' },
-			{ name: 'Талия', value: '85 см', change: '-2 см' },
-			{ name: 'Грудь', value: '102 см', change: '-1 см' },
-		],
-	},
-	{
-		id: '3',
-		date: '15.11.2024',
-		measurements: [
-			{ name: 'Вес', value: '76.5 кг', change: '-1.2 кг' },
-			{ name: 'Талия', value: '87 см', change: '-3 см' },
-			{ name: 'Грудь', value: '103 см', change: '-1 см' },
-		],
-	},
-	{
-		id: '4',
-		date: '01.11.2024',
-		measurements: [
-			{ name: 'Вес', value: '77.7 кг', change: '+0.5 кг' },
-			{ name: 'Талия', value: '90 см', change: '+1 см' },
-			{ name: 'Грудь', value: '104 см', change: '0 см' },
-		],
-	},
-]
+interface HistoryEntry {
+	id: string
+	date: string
+	measurements: Array<{
+		name: string
+		value: string
+		change: string
+	}>
+}
 
 export default function MeasurementsHistoryScreen() {
 	const router = useRouter()
 	const [selectedTab, setSelectedTab] = useState<'current' | 'history'>(
-		'current'
+		'current',
 	)
 	const [selectedMeasurement, setSelectedMeasurement] =
 		useState<Measurement | null>(null)
 	const [modalVisible, setModalVisible] = useState(false)
+
+	const [currentMeasurements, setCurrentMeasurements] = useState<Measurement[]>(
+		[],
+	)
+	const [historyData, setHistoryData] = useState<HistoryEntry[]>([])
+	const [loading, setLoading] = useState(true)
+
+	useEffect(() => {
+		loadData()
+	}, [])
+
+	const loadData = async () => {
+		try {
+			setLoading(true)
+
+			// Загружаем текущие замеры
+			const latestMeasurements = await db.getLatestBodyMeasurements()
+			const formattedCurrentMeasurements: Measurement[] =
+				latestMeasurements.map((m, index) => {
+					// Находим предыдущее значение для расчета изменения
+					const previousValue = 0 // В реальном приложении нужно получать предыдущее значение
+					const change = m.value - previousValue
+
+					return {
+						id: m.id?.toString() || index.toString(),
+						name: m.name,
+						value: m.value,
+						unit: m.unit,
+						trend: m.trend,
+						date: m.date,
+						change,
+						goal: m.goal,
+						progress: m.goal ? (m.value / m.goal) * 100 : undefined,
+					}
+				})
+			setCurrentMeasurements(formattedCurrentMeasurements)
+
+			// Загружаем историю замеров
+			const allMeasurements = await db.getBodyMeasurements()
+
+			// Группируем измерения по дате
+			const groupedByDate: Record<
+				string,
+				Array<{ name: string; value: number; unit: string }>
+			> = {}
+
+			allMeasurements.forEach(m => {
+				if (!groupedByDate[m.date]) {
+					groupedByDate[m.date] = []
+				}
+				groupedByDate[m.date].push({
+					name: m.name,
+					value: m.value,
+					unit: m.unit,
+				})
+			})
+
+			// Форматируем для отображения
+			const formattedHistory: HistoryEntry[] = Object.entries(groupedByDate)
+				.sort(
+					([dateA], [dateB]) =>
+						new Date(dateB).getTime() - new Date(dateA).getTime(),
+				)
+				.map(([date, measurements], index) => {
+					// Находим предыдущие измерения для расчета изменений
+					const previousDate = Object.keys(groupedByDate)[index + 1]
+					const previousMeasurements = previousDate
+						? groupedByDate[previousDate]
+						: []
+
+					const formattedMeasurements = measurements.map(m => {
+						const previous = previousMeasurements.find(pm => pm.name === m.name)
+						const change = previous ? m.value - previous.value : 0
+
+						return {
+							name: m.name,
+							value: `${m.value} ${m.unit}`,
+							change: `${change > 0 ? '+' : ''}${change.toFixed(1)} ${m.unit}`,
+						}
+					})
+
+					return {
+						id: index.toString(),
+						date: formatDate(date),
+						measurements: formattedMeasurements,
+					}
+				})
+
+			setHistoryData(formattedHistory)
+		} catch (error) {
+			console.error('Error loading measurements:', error)
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	const formatDate = (dateString: string): string => {
+		const date = new Date(dateString)
+		const day = date.getDate().toString().padStart(2, '0')
+		const month = (date.getMonth() + 1).toString().padStart(2, '0')
+		const year = date.getFullYear()
+		return `${day}.${month}.${year}`
+	}
 
 	const getTrendIcon = (trend: string) => {
 		switch (trend) {
@@ -211,8 +187,8 @@ export default function MeasurementsHistoryScreen() {
 							{ color: getTrendIcon(item.trend).color },
 						]}
 					>
-						{item.change > 0 ? '+' : ''}
-						{item.change} {item.unit}
+						{item.change && item.change > 0 ? '+' : ''}
+						{item.change?.toFixed(1)} {item.unit}
 					</Text>
 				</View>
 			</View>
@@ -221,53 +197,45 @@ export default function MeasurementsHistoryScreen() {
 				<View style={styles.valueColumn}>
 					<Text style={styles.valueLabel}>Текущий</Text>
 					<Text style={styles.currentValue}>
-						{item.current} {item.unit}
+						{item.value} {item.unit}
 					</Text>
 				</View>
-				<View style={styles.valueColumn}>
-					<Text style={styles.valueLabel}>Предыдущий</Text>
-					<Text style={styles.previousValue}>
-						{item.previous} {item.unit}
-					</Text>
-				</View>
+				{item.goal && (
+					<View style={styles.valueColumn}>
+						<Text style={styles.valueLabel}>Цель</Text>
+						<Text style={styles.goalValue}>
+							{item.goal} {item.unit}
+						</Text>
+					</View>
+				)}
 			</View>
 
-			{item.goal && (
+			{item.goal && item.progress && (
 				<View style={styles.goalContainer}>
 					<View style={styles.goalInfo}>
-						<Text style={styles.goalLabel}>Цель: {item.goal} {item.unit}</Text>
-						{item.progress && (
-							<Text
-								style={[
-									styles.progressText,
-									{ color: getProgressColor(item.progress) },
-								]}
-							>
-								{item.progress}%
-							</Text>
-						)}
+						<Text style={styles.goalLabel}>
+							Прогресс: {item.progress.toFixed(1)}%
+						</Text>
 					</View>
-					{item.progress && (
-						<View style={styles.progressBar}>
-							<View
-								style={[
-									styles.progressFill,
-									{
-										width: `${Math.min(item.progress, 100)}%`,
-										backgroundColor: getProgressColor(item.progress),
-									},
-								]}
-							/>
-						</View>
-					)}
+					<View style={styles.progressBar}>
+						<View
+							style={[
+								styles.progressFill,
+								{
+									width: `${Math.min(item.progress, 100)}%`,
+									backgroundColor: getProgressColor(item.progress),
+								},
+							]}
+						/>
+					</View>
 				</View>
 			)}
 
-			<Text style={styles.dateText}>Измерено: {item.date}</Text>
+			<Text style={styles.dateText}>Измерено: {formatDate(item.date)}</Text>
 		</TouchableOpacity>
 	)
 
-	const renderHistoryItem = ({ item }: { item: typeof HISTORY_DATA[0] }) => (
+	const renderHistoryItem = ({ item }: { item: HistoryEntry }) => (
 		<View style={styles.historyItem}>
 			<View style={styles.historyHeader}>
 				<View style={styles.historyDateContainer}>
@@ -284,11 +252,11 @@ export default function MeasurementsHistoryScreen() {
 						style={[
 							styles.historyChange,
 							{
-								color: measurement.change.includes('-')
+								color: measurement.change.includes('+')
 									? '#34C759'
-									: measurement.change.includes('+')
-									? '#FF3B30'
-									: '#8E8E93',
+									: measurement.change.includes('-')
+										? '#FF3B30'
+										: '#8E8E93',
 							},
 						]}
 					>
@@ -298,6 +266,54 @@ export default function MeasurementsHistoryScreen() {
 			))}
 		</View>
 	)
+
+	useFocusEffect(
+		useCallback(() => {
+			// Очистка при размонтировании (опционально)
+			loadData()
+			return () => {
+				// Здесь можно выполнить очистку, если нужно
+			}
+		}, []),
+	)
+
+	const handleAddMeasurement = () => {
+		router.push('/(routes)/add-measurement')
+	}
+
+	const handleEditMeasurement = (id: string) => {
+		router.push(`/(routes)/edit-measurement/${id}`)
+	}
+
+	const handleDeleteMeasurement = async (id: string) => {
+		if (!(await confirmDelete())) return
+
+		try {
+			await db.deleteBodyMeasurement(Number(id))
+			await loadData()
+		} catch (err) {
+			console.error(err)
+		}
+	}
+
+	// Вспомогательная функция подтверждения (можно вынести)
+	const confirmDelete = async (): Promise<boolean> => {
+		return new Promise(resolve => {
+			Alert.alert(
+				'Удалить?',
+				'Действие нельзя отменить',
+				[
+					{ text: 'Отмена', onPress: () => resolve(false) },
+					{
+						text: 'Удалить',
+						style: 'destructive',
+						onPress: () => resolve(true),
+					},
+				],
+				{ cancelable: true },
+			)
+		})
+	}
 
 	return (
 		<SafeAreaView style={styles.container}>
@@ -310,7 +326,10 @@ export default function MeasurementsHistoryScreen() {
 					<Ionicons name='arrow-back' size={24} color='#FFFFFF' />
 				</TouchableOpacity>
 				<Text style={styles.headerTitle}>История замеров</Text>
-				<TouchableOpacity style={styles.addButton}>
+				<TouchableOpacity
+					style={styles.addButton}
+					onPress={handleAddMeasurement}
+				>
 					<Ionicons name='add' size={24} color='#34C759' />
 				</TouchableOpacity>
 			</View>
@@ -318,10 +337,7 @@ export default function MeasurementsHistoryScreen() {
 			{/* Табы */}
 			<View style={styles.tabsContainer}>
 				<TouchableOpacity
-					style={[
-						styles.tab,
-						selectedTab === 'current' && styles.activeTab,
-					]}
+					style={[styles.tab, selectedTab === 'current' && styles.activeTab]}
 					onPress={() => setSelectedTab('current')}
 				>
 					<Text
@@ -334,10 +350,7 @@ export default function MeasurementsHistoryScreen() {
 					</Text>
 				</TouchableOpacity>
 				<TouchableOpacity
-					style={[
-						styles.tab,
-						selectedTab === 'history' && styles.activeTab,
-					]}
+					style={[styles.tab, selectedTab === 'history' && styles.activeTab]}
 					onPress={() => setSelectedTab('history')}
 				>
 					<Text
@@ -357,21 +370,33 @@ export default function MeasurementsHistoryScreen() {
 					<View style={styles.statIconContainer}>
 						<Ionicons name='trending-down' size={20} color='#34C759' />
 					</View>
-					<Text style={styles.statValue}>-3.7 кг</Text>
+					<Text style={styles.statValue}>
+						{currentMeasurements.length > 0
+							? `${currentMeasurements.find(m => m.name.includes('Вес'))?.change?.toFixed(1) || '0'} кг`
+							: '0 кг'}
+					</Text>
 					<Text style={styles.statLabel}>Изменение веса</Text>
 				</View>
 				<View style={styles.statCard}>
 					<View style={styles.statIconContainer}>
 						<Ionicons name='body' size={20} color='#FF9500' />
 					</View>
-					<Text style={styles.statValue}>8</Text>
+					<Text style={styles.statValue}>{currentMeasurements.length}</Text>
 					<Text style={styles.statLabel}>Параметров</Text>
 				</View>
 				<View style={styles.statCard}>
 					<View style={styles.statIconContainer}>
 						<Ionicons name='calendar' size={20} color='#5856D6' />
 					</View>
-					<Text style={styles.statValue}>30</Text>
+					<Text style={styles.statValue}>
+						{currentMeasurements.length > 0
+							? Math.floor(
+									(new Date().getTime() -
+										new Date(currentMeasurements[0].date).getTime()) /
+										(1000 * 60 * 60 * 24),
+								)
+							: '0'}
+					</Text>
 					<Text style={styles.statLabel}>Дней назад</Text>
 				</View>
 			</View>
@@ -379,7 +404,7 @@ export default function MeasurementsHistoryScreen() {
 			{/* Контент в зависимости от выбранного таба */}
 			{selectedTab === 'current' ? (
 				<FlatList
-					data={MEASUREMENTS_DATA}
+					data={currentMeasurements}
 					renderItem={renderMeasurementItem}
 					keyExtractor={item => item.id}
 					contentContainerStyle={styles.listContainer}
@@ -396,11 +421,20 @@ export default function MeasurementsHistoryScreen() {
 				/>
 			) : (
 				<FlatList
-					data={HISTORY_DATA}
+					data={historyData}
 					renderItem={renderHistoryItem}
 					keyExtractor={item => item.id}
 					contentContainerStyle={styles.historyListContainer}
 					showsVerticalScrollIndicator={false}
+					ListEmptyComponent={
+						<View style={styles.emptyContainer}>
+							<Ionicons name='calendar' size={64} color='#2C2C2E' />
+							<Text style={styles.emptyText}>Нет истории</Text>
+							<Text style={styles.emptySubtext}>
+								Добавьте замеры для просмотра истории
+							</Text>
+						</View>
+					}
 				/>
 			)}
 
@@ -432,13 +466,13 @@ export default function MeasurementsHistoryScreen() {
 										<View style={styles.modalStat}>
 											<Text style={styles.modalStatLabel}>Текущий</Text>
 											<Text style={styles.modalStatValue}>
-												{selectedMeasurement.current} {selectedMeasurement.unit}
+												{selectedMeasurement.value} {selectedMeasurement.unit}
 											</Text>
 										</View>
 										<View style={styles.modalStat}>
-											<Text style={styles.modalStatLabel}>Предыдущий</Text>
+											<Text style={styles.modalStatLabel}>Дата</Text>
 											<Text style={styles.modalStatValue}>
-												{selectedMeasurement.previous} {selectedMeasurement.unit}
+												{formatDate(selectedMeasurement.date)}
 											</Text>
 										</View>
 										<View style={styles.modalStat}>
@@ -446,8 +480,7 @@ export default function MeasurementsHistoryScreen() {
 											<View style={styles.changeContainer}>
 												<Ionicons
 													name={
-														getTrendIcon(selectedMeasurement.trend)
-															.name as any
+														getTrendIcon(selectedMeasurement.trend).name as any
 													}
 													size={16}
 													color={getTrendIcon(selectedMeasurement.trend).color}
@@ -461,16 +494,14 @@ export default function MeasurementsHistoryScreen() {
 														},
 													]}
 												>
-													{selectedMeasurement.change > 0 ? '+' : ''}
-													{selectedMeasurement.change} {selectedMeasurement.unit}
+													{selectedMeasurement.change &&
+													selectedMeasurement.change > 0
+														? '+'
+														: ''}
+													{selectedMeasurement.change?.toFixed(1)}{' '}
+													{selectedMeasurement.unit}
 												</Text>
 											</View>
-										</View>
-										<View style={styles.modalStat}>
-											<Text style={styles.modalStatLabel}>Дата</Text>
-											<Text style={styles.modalStatValue}>
-												{selectedMeasurement.date}
-											</Text>
 										</View>
 									</View>
 
@@ -489,12 +520,12 @@ export default function MeasurementsHistoryScreen() {
 																styles.progressPercent,
 																{
 																	color: getProgressColor(
-																		selectedMeasurement.progress
+																		selectedMeasurement.progress,
 																	),
 																},
 															]}
 														>
-															{selectedMeasurement.progress}%
+															{selectedMeasurement.progress.toFixed(1)}%
 														</Text>
 													)}
 												</View>
@@ -504,12 +535,9 @@ export default function MeasurementsHistoryScreen() {
 															style={[
 																styles.progressFill,
 																{
-																	width: `${Math.min(
-																		selectedMeasurement.progress,
-																		100
-																	)}%`,
+																	width: `${Math.min(selectedMeasurement.progress, 100)}%`,
 																	backgroundColor: getProgressColor(
-																		selectedMeasurement.progress
+																		selectedMeasurement.progress,
 																	),
 																},
 															]}
@@ -521,11 +549,23 @@ export default function MeasurementsHistoryScreen() {
 									)}
 
 									<View style={styles.modalActions}>
-										<TouchableOpacity style={styles.editButton}>
+										<TouchableOpacity
+											style={styles.editButton}
+											onPress={() => {
+												;(setModalVisible(false),
+													handleEditMeasurement(selectedMeasurement.id))
+											}}
+										>
 											<Ionicons name='create' size={20} color='#FFFFFF' />
 											<Text style={styles.editButtonText}>Редактировать</Text>
 										</TouchableOpacity>
-										<TouchableOpacity style={styles.deleteButton}>
+										<TouchableOpacity
+											style={styles.deleteButton}
+											onPress={() => {
+												;(handleDeleteMeasurement(selectedMeasurement.id),
+													setModalVisible(false))
+											}}
+										>
 											<Ionicons name='trash' size={20} color='#FF3B30' />
 											<Text style={styles.deleteButtonText}>Удалить</Text>
 										</TouchableOpacity>
@@ -538,7 +578,7 @@ export default function MeasurementsHistoryScreen() {
 			</Modal>
 
 			{/* Кнопка добавления */}
-			<TouchableOpacity style={styles.fab} onPress={() => {}}>
+			<TouchableOpacity style={styles.fab} onPress={handleAddMeasurement}>
 				<Ionicons name='add' size={24} color='#FFFFFF' />
 			</TouchableOpacity>
 		</SafeAreaView>
@@ -554,7 +594,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingVertical: 16,
 		borderBottomWidth: 1,
 		borderBottomColor: '#2C2C2E',
@@ -572,7 +612,7 @@ const styles = StyleSheet.create({
 	},
 	tabsContainer: {
 		flexDirection: 'row',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingVertical: 12,
 		borderBottomWidth: 1,
 		borderBottomColor: '#2C2C2E',
@@ -596,7 +636,7 @@ const styles = StyleSheet.create({
 	},
 	statsContainer: {
 		flexDirection: 'row',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingVertical: 16,
 		gap: 12,
 	},
@@ -627,7 +667,7 @@ const styles = StyleSheet.create({
 		color: '#8E8E93',
 	},
 	listContainer: {
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingTop: 8,
 		paddingBottom: 100,
 	},
@@ -679,9 +719,9 @@ const styles = StyleSheet.create({
 		fontWeight: 'bold',
 		color: '#FFFFFF',
 	},
-	previousValue: {
+	goalValue: {
 		fontSize: 20,
-		color: '#8E8E93',
+		color: '#FF9500',
 	},
 	goalContainer: {
 		marginBottom: 12,
@@ -715,7 +755,7 @@ const styles = StyleSheet.create({
 		color: '#8E8E93',
 	},
 	historyListContainer: {
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingTop: 8,
 		paddingBottom: 100,
 	},
@@ -796,7 +836,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		alignItems: 'center',
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		marginBottom: 24,
 	},
 	modalTitle: {
@@ -809,7 +849,7 @@ const styles = StyleSheet.create({
 		padding: 4,
 	},
 	modalBody: {
-		paddingHorizontal: 20,
+		paddingHorizontal: 10,
 		paddingBottom: 40,
 	},
 	modalStatsGrid: {
