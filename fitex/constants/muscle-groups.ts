@@ -34,6 +34,10 @@ export const muscle_groups = [
 						primaryMuscles: ['Грудные мышцы'],
 						secondaryMuscles: ['Передние дельты', 'Трицепс'],
 						primaryFrontMuscles: ['leftPectoralisMajor', 'rightPectoralisMajor'],
+						muscleActivityPercent: {
+							leftPectoralisMajor: 60,
+							rightPectoralisMajor: 60,
+						},
 						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
 						primaryBackMuscles: [],
 						secondaryBackMuscles: ['leftTriceps', 'rightTriceps'],
@@ -1643,72 +1647,101 @@ export const muscle_groups = [
 				image: manFrontMuscleGroupParts.upperFullAbs || manFrontMuscleGroupParts.pressFull,
 				exercises: [
 					{
-						id: 'crunch',
-						name: 'Скручивания лёжа (crunches)',
+						id: 'decline-bench-sit-ups',
+						name: 'Скручивания на наклонной скамье',
 						description:
-							'Классика для верхней части пресса. Максимально нагружает верх rectus abdominis при спинальной флексии.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=Xyd_fa5cO1s',
-						primaryMuscles: ['Верхний пресс'],
-						secondaryMuscles: ['Косые мышцы'],
-						tips: [
-							'Поднимайте только лопатки, не тяните шею',
-							'Сжимайте пресс вверху 1–2 секунды',
-							'Медленный негатив — не падайте вниз',
-							'Дыхание: выдох на подъёме',
-							'Для прогресса — добавьте вес на грудь',
+							'Эффективное упражнение для укрепления прямой мышцы живота. Угол наклона скамьи позволяет увеличить нагрузку на мышцы пресса и задействовать их по всей длине.',
+						image: require('@/assets/training-videos/v58/v2.png'),
+						imagePosition: {
+							width: '140%',
+							left: -30,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v58/v1.png'),
+							require('@/assets/training-videos/v58/v2.png'),
 						],
-						equipment: ['Собственный вес', 'Пол / коврик'],
-						difficulty: 'Начальный / Средний',
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_decline_situps.mp4',
+						primaryMuscles: ['Пресс'],
+						secondaryMuscles: ['Подвздошно-поясничная мышца'],
+						primaryFrontMuscles: ['abs'],
+						secondaryFrontMuscles: ['leftObliques', 'rightObliques'],
+						primaryBackMuscles: [],
+						secondaryBackMuscles: [],
+						tips: [
+							'Настройте угол наклона скамьи: чем ниже голова, тем сложнее выполнять упражнение',
+							'Не тяните себя руками за голову — держите их скрещенными на груди или у висков, чтобы не перегружать шею',
+							'Поднимайтесь за счет скручивания корпуса, а не простого подъема прямой спины',
+							'В верхней точке максимально напрягите пресс, а на спуске двигайтесь медленно и подконтрольно',
+							'Не опускайте лопатки на скамью полностью в нижней точке, чтобы сохранять постоянное напряжение в мышцах',
+						],
+						equipment: ['Наклонная скамья для пресса'],
+						difficulty: 'Новичок',
 					},
 					{
-						id: 'stability-ball-crunch',
-						name: 'Скручивания на фитболе',
+						id: 'seated-machine-crunch',
+						name: 'Скручивания в тренажере',
 						description:
-							'Лучшее по EMG для верхнего пресса — больший диапазон + активация на 24–38% выше обычных скручиваний.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=some-stability-ball-crunch',
-						primaryMuscles: ['Верхний пресс'],
-						secondaryMuscles: ['Глубокий кор'],
-						tips: [
-							'Спина на мяче, ноги на полу',
-							'Поднимайтесь до пикового сокращения',
-							'Не раскачивайтесь — фокус на пресс',
+							'Изолирующее упражнение для глубокой проработки прямой мышцы живота. Конструкция тренажера позволяет выполнять движение с дополнительным отягощением, обеспечивая постоянное напряжение мышц пресса на всей амплитуде.',
+						image: require('@/assets/training-videos/v59/v1.png'),
+						imagePosition: {
+							width: '140%',
+							left: -20,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v59/v1.png'),
+							require('@/assets/training-videos/v59/v2.png'),
 						],
-						equipment: ['Фитбол'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_machine_crunch.mp4',
+						primaryMuscles: ['Пресс'],
+						secondaryMuscles: ['Косые мышцы живота'],
+						primaryFrontMuscles: ['abs'],
+						secondaryFrontMuscles: ['leftObliques', 'rightObliques'],
+						primaryBackMuscles: [],
+						secondaryBackMuscles: [],
+						tips: [
+							'Отрегулируйте высоту сиденья так, чтобы ось вращения тренажера совпадала с линией вашего пояса',
+							'Делайте движение за счет сокращения мышц пресса, а не за счет силы рук, тянущих за рукояти',
+							'На выдохе максимально скрутите корпус вниз, стараясь приблизить грудную клетку к тазу',
+							'В нижней точке задержитесь на 1 секунду для пикового сокращения мышц',
+							'Возвращайтесь в исходное положение медленно, не позволяя плиткам весового стека полностью соприкасаться',
+						],
+						equipment: ['Тренажер для пресса'],
+						difficulty: 'Новичок',
+					},
+					{
+						id: 'captains-chair-leg-raise',
+						name: 'Подъем ног в упоре на брусьях',
+						description:
+							'Базовое упражнение для акцентированной проработки нижнего отдела пресса. Упор на предплечья фиксирует корпус, позволяя максимально изолировать целевые мышцы и исключить помощь инерции.',
+						image: require('@/assets/training-videos/v62/v2.png'),
+						imagePosition: {
+							width: '140%',
+							left: -20,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v62/v1.png'),
+							require('@/assets/training-videos/v62/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_captains_chair_raises.mp4',
+						primaryMuscles: ['Пресс'],
+						secondaryMuscles: ['Подвздошно-поясничная мышца', 'Передняя дельта'],
+						primaryFrontMuscles: ['abs'],
+						secondaryFrontMuscles: ['leftObliques', 'rightObliques', 'leftFrontDeltoid', 'rightFrontDeltoid'],
+						primaryBackMuscles: [],
+						secondaryBackMuscles: [],
+						tips: [
+							'Плотно прижмите поясницу к подушке тренажера и не отрывайте её во время подъема',
+							'Не раскачивайте ноги — движение должно быть плавным и подконтрольным',
+							'Старайтесь поднимать ноги чуть выше параллели с полом, слегка подкручивая таз вперед для максимального сокращения пресса',
+							'На выдохе поднимайте ноги, на вдохе медленно опускайте',
+							'Если поднимать прямые ноги слишком тяжело, начните с подъема коленей к груди',
+						],
+						equipment: ['Тренажер "Брусья-пресс"'],
 						difficulty: 'Средний',
 					},
-					{
-						id: 'bicycle-crunch',
-						name: 'Велосипед (bicycle crunches)',
-						description:
-							'Топ-1 по EMG для всего пресса, сильно нагружает верх + косые.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=9FGilxCbdz8',
-						primaryMuscles: ['Верхний пресс', 'Косые'],
-						secondaryMuscles: ['Нижний пресс'],
-						tips: [
-							'Локоть к противоположному колену',
-							'Медленно, с контролем',
-							'Не тяните шею руками',
-						],
-						equipment: ['Собственный вес'],
-						difficulty: 'Средний',
-					},
-					{
-						id: 'weighted-crunch',
-						name: 'Скручивания с весом',
-						description:
-							'Для гипертрофии верхнего пресса — добавьте блин или гантель.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=some-weighted-crunch',
-						primaryMuscles: ['Верхний пресс'],
-						secondaryMuscles: ['Косые'],
-						tips: ['Вес на груди', '8–15 повторений'],
-						equipment: ['Блин / гантель'],
-						difficulty: 'Средний / Высокий',
-					},
-					// ... Добавь cable crunch, dragon flag variations, etc.
 				],
 			},
 			{
@@ -2838,95 +2871,421 @@ export const muscle_groups = [
 				image: manBackMuscleGroupParts.upperTrapeziusFull || manBackMuscleGroupParts.trapeziusFull,
 				exercises: [
 					{
-						id: 'barbell-shrug',
+						id: 'bent-over-barbell-row',
+						name: 'Тяга штанги в наклоне',
+						description:
+							'Мощное базовое упражнение для развития широчайших мышц, трапеций и всей верхней части спины. Также активно задействует мышцы-разгибатели позвоночника для стабилизации корпуса.',
+						image: require('@/assets/training-videos/v12/v2.png'),
+						imagePosition: {
+							width: '140%',
+							left: -20,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v12/v1.png'),
+							require('@/assets/training-videos/v12/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_barbell_row.mp4',
+						primaryMuscles: ['Широчайшие', 'Трапеции'],
+						secondaryMuscles: ['Задняя дельта', 'Бицепс', 'Разгибатели спины'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftBiceps', 'rightBiceps'],
+						primaryBackMuscles: ['leftLats', 'rightLats', 'traps'],
+						secondaryBackMuscles: ['leftRearDeltoid', 'rightRearDeltoid', 'lowerBack'],
+						tips: [
+							'Наклоните торс вперед до угла примерно 45 градусов, сохраняя естественный прогиб в пояснице',
+							'Тяните штангу к нижней части живота, ведя локти вдоль корпуса и максимально сводя лопатки в верхней точке',
+							'Держите колени слегка согнутыми для лучшей устойчивости и снятия нагрузки с поясницы',
+							'Избегайте рывков корпусом; если не получается тянуть плавно, значит вес слишком велик',
+							'Опускайте штангу подконтрольно, полностью растягивая мышцы спины в нижней точке',
+						],
+						equipment: ['Штанга'],
+						difficulty: 'Средний',
+					},
+					{
+						id: 'barbell-deadlift',
+						name: 'Становая тяга со штангой',
+						description:
+							'Фундаментальное базовое упражнение для развития общей силы и мышечной массы. Оно прорабатывает всю заднюю мышечную цепь: от икроножных мышц и бицепса бедра до широчайших и трапеций.',
+						image: require('@/assets/training-videos/v13/v2.png'),
+						imagePosition: {
+							width: '130%',
+							left: -15,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v13/v1.png'),
+							require('@/assets/training-videos/v13/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_deadlift.mp4',
+						primaryMuscles: ['Разгибатели спины', 'Ягодицы', 'Бицепс бедра'],
+						secondaryMuscles: ['Квадрицепс', 'Трапеции', 'Широчайшие', 'Предплечья'],
+						primaryFrontMuscles: ['leftQuads', 'rightQuads'],
+						secondaryFrontMuscles: ['leftForearms', 'rightForearms'],
+						primaryBackMuscles: ['lowerBack', 'leftGlutes', 'rightGlutes', 'leftHamstrings', 'rightHamstrings'],
+						secondaryBackMuscles: ['leftLats', 'rightLats', 'traps'],
+						tips: [
+							'Подойдите к штанге так, чтобы гриф находился над серединой стопы',
+							'Держите спину идеально прямой, не допуская округления в пояснице на всех этапах движения',
+							'Начинайте подъем за счет мощного толчка ногами в пол, удерживая штангу максимально близко к голеням',
+							'В верхней точке полностью выпрямитесь, сводя лопатки, но не отклоняйте корпус избыточно назад',
+							'Опускайте штангу подконтрольно, отводя таз назад до момента прохождения грифом уровня колен'
+						],
+						equipment: ['Штанга'],
+						difficulty: 'Продвинутый',
+					},
+					{
+						id: 'barbell-shrugs',
 						name: 'Шраги со штангой',
-						description: 'Базовое упражнение для увеличения массы и силы верхней части трапеций.',
-						image: manBackMuscleGroupParts.trapeziusFull || manBackMuscleGroupParts.trapeziusFull,
-						videoUrl: 'https://www.youtube.com/watch?v=gZbIRJkDp0k',
-						primaryMuscles: ['Верх трапеций'],
-						secondaryMuscles: ['Средние трапеции', 'Ромбовидные', 'Левиаторы лопаток'],
+						description:
+							'Базовое изолирующее упражнение для проработки верхней части трапециевидных мышц. Движение заключается в вертикальном подъеме плеч с отягощением, что позволяет эффективно нагрузить целевую мышцу по всей её оси.',
+						image: require('@/assets/training-videos/v14/v2.png'),
+						imagePosition: {
+							width: '130%',
+							left: -15,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v14/v1.png'),
+							require('@/assets/training-videos/v14/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_barbell_shrugs.mp4',
+						primaryMuscles: ['Трапеции'],
+						secondaryMuscles: ['Предплечья', 'Мышцы шеи'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftForearms', 'rightForearms'],
+						primaryBackMuscles: ['traps'],
+						secondaryBackMuscles: ['upperBack'],
 						tips: [
-							'Держите штангу перед собой прямым хватом',
-							'Поднимайте плечи строго вертикально вверх',
-							'В верхней точке делайте паузу 1-2 секунды',
-							'Не вращайте плечами (риск травмы)',
-							'Опускайте медленно, с полным растяжением'
+							'Встаньте прямо, удерживая штангу хватом чуть шире плеч',
+							'Поднимайте плечи максимально высоко к ушам, двигаясь строго вертикально',
+							'Избегайте вращательных движений плечами — это создает лишнюю и опасную нагрузку на суставы',
+							'В верхней точке сделайте паузу на 1 секунду для пикового сокращения мышц',
+							'Медленно опускайте штангу вниз, полностью растягивая трапеции, но не расслабляя их до конца',
 						],
 						equipment: ['Штанга'],
-						difficulty: 'Средний',
-						variations: [
-							'С гантелями',
-							'В тренажёре Смита',
-							'За спиной со штангой'
-						]
+						difficulty: 'Новичок',
 					},
 					{
-						id: 'dumbbell-shrug',
-						name: 'Шраги с гантелями',
-						description: 'Более естественная траектория движения, чем со штангой.',
-						image: manBackMuscleGroupParts.trapeziusFull || manBackMuscleGroupParts.trapeziusFull,
-						videoUrl: 'https://www.youtube.com/watch?v=example',
-						primaryMuscles: ['Верх трапеций'],
-						secondaryMuscles: ['Средние трапеции'],
-						tips: [
-							'Гантели по бокам вдоль тела',
-							'Прямая спина, небольшой наклон вперёд',
-							'Поднимайте плечи к ушам',
-							'Используйте серьёзные веса',
-							'Избегайте инерции'
+						id: 'machine-seated-row-hammer',
+						name: 'Горизонтальная тяга в тренажере (Hammer)',
+						description:
+							'Эффективное упражнение для развития толщины спины. Независимые рычаги тренажера позволяют работать каждой рукой по отдельности, что помогает устранить мышечный дисбаланс и добиться глубокого сокращения мышц.',
+						image: require('@/assets/training-videos/v46/v2.png'),
+						imagePosition: {
+							width: '130%',
+							left: -15,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v46/v1.png'),
+							require('@/assets/training-videos/v46/v2.png'),
 						],
-						equipment: ['Гантели'],
-						difficulty: 'Средний',
-						variations: [
-							'С вращением плеч назад',
-							'Попеременные шраги'
-						]
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_hammer_row.mp4',
+						primaryMuscles: ['Широчайшие', 'Ромбовидные'],
+						secondaryMuscles: ['Трапеции (нижняя часть)', 'Задняя дельта', 'Бицепс'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftBiceps', 'rightBiceps'],
+						primaryBackMuscles: ['leftLats', 'rightLats'],
+						secondaryBackMuscles: ['traps', 'leftRearDeltoid', 'rightRearDeltoid'],
+						tips: [
+							'Отрегулируйте высоту сиденья так, чтобы рукояти находились на уровне нижней части груди или верха живота',
+							'Плотно прижмитесь грудью к опорной подушке, сохраняя спину прямой',
+							'Тяните рукояти на себя, стараясь максимально отвести локти назад и свести лопатки вместе',
+							'Делайте выдох на усилии (тяга к себе) и вдох при возвращении в исходное положение',
+							'Не позволяйте весу полностью опускаться в нижней точке, чтобы сохранять напряжение в мышцах спины',
+						],
+						equipment: ['Рычажный тренажер (Hammer Strength)'],
+						difficulty: 'Новичок',
 					},
 					{
-						id: 'rack-pull-high',
-						name: 'Высокая тяга из стоек (Rack Pull)',
-						description: 'Тяжёлое упражнение для верха трапеций и верхней части спины.',
-						image: manBackMuscleGroupParts.trapeziusFull || manBackMuscleGroupParts.trapeziusFull,
-						videoUrl: 'https://www.youtube.com/watch?v=example',
-						primaryMuscles: ['Верх трапеций'],
-						secondaryMuscles: ['Широчайшие', 'Ромбовидные', 'Выпрямители спины'],
-						tips: [
-							'Штанга на уровне коленей или выше',
-							'Хват на ширине плеч или шире',
-							'Тяните штангу к ключицам, ведя локти вверх и назад',
-							'Сводите лопатки в верхней точке',
-							'Контролируйте опускание'
+						id: 'bent-over-t-bar-row-free',
+						name: 'Тяга Т-грифа в наклоне',
+						description:
+							'Классическое упражнение для развития толщины и плотности спины. Свободная траектория движения позволяет максимально естественно свести лопатки и нагрузить широчайшие, ромбовидные и трапециевидные мышцы.',
+						image: require('@/assets/training-videos/v50/v1.png'),
+						imagePosition: {
+							width: '135%',
+							left: -15,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v50/v1.png'),
+							require('@/assets/training-videos/v50/v2.png'),
 						],
-						equipment: ['Штанга', 'Стойки'],
-						difficulty: 'Высокий',
-						variations: [
-							'С гантелями',
-							'В тренажёре Смита'
-						]
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_tbar_free_row.mp4',
+						primaryMuscles: ['Широчайшие', 'Трапеции'],
+						secondaryMuscles: ['Ромбовидные', 'Разгибатели спины', 'Задняя дельта', 'Бицепс'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftBiceps', 'rightBiceps'],
+						primaryBackMuscles: ['leftLats', 'rightLats', 'traps'],
+						secondaryBackMuscles: ['lowerBack', 'leftRearDeltoid', 'rightRearDeltoid'],
+						tips: [
+							'Встаньте над грифом, слегка согните колени и наклоните корпус вперед с прямой спиной',
+							'Тяните рукоять к нижней части живота, концентрируясь на движении локтей назад и вверх',
+							'В верхней точке максимально сведите лопатки и задержитесь на долю секунды',
+							'Медленно опускайте вес, полностью растягивая мышцы спины, но не позволяя блинам касаться пола',
+							'Держите пресс в напряжении на протяжении всего подхода, чтобы стабилизировать поясницу',
+						],
+						equipment: ['Т-гриф или штанга с V-рукоятью'],
+						difficulty: 'Средний',
 					},
 					{
-						id: 'upright-row',
-						name: 'Тяга к подбородку',
-						description: 'Упражнение для верха трапеций и средних дельт.',
-						image: manBackMuscleGroupParts.trapeziusFull || manBackMuscleGroupParts.trapeziusFull,
-						videoUrl: 'https://www.youtube.com/watch?v=example',
-						primaryMuscles: ['Верх трапеций'],
-						secondaryMuscles: ['Средние дельты', 'Бицепсы'],
-						tips: [
-							'Узкий хват (15-20 см) акцентирует трапеции',
-							'Тяните локти вверх, а не руки',
-							'Штанга движется вдоль тела',
-							'Не поднимайте выше ключиц',
-							'Избегайте рывков'
+						id: 'chest-supported-t-bar-row',
+						name: 'Тяга Т-грифа с упором в грудь',
+						description:
+							'Эффективное упражнение для развития толщины спины. Упор грудью изолирует целевые мышцы, предотвращая использование инерции и снимая осевую нагрузку с позвоночника.',
+						image: require('@/assets/training-videos/v51/v2.png'),
+						imagePosition: {
+							width: '135%',
+							left: -20,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v51/v1.png'),
+							require('@/assets/training-videos/v51/v2.png'),
 						],
-						equipment: ['Штанга'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_chest_supported_tbar.mp4',
+						primaryMuscles: ['Широчайшие', 'Ромбовидные'],
+						secondaryMuscles: ['Трапеции', 'Задняя дельта', 'Бицепс'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftBiceps', 'rightBiceps'],
+						primaryBackMuscles: ['leftLats', 'rightLats', 'traps'],
+						secondaryBackMuscles: ['leftRearDeltoid', 'rightRearDeltoid'],
+						tips: [
+							'Отрегулируйте высоту упора так, чтобы верхний край подушки находился на уровне верха груди',
+							'Плотно прижмитесь грудью к платформе и сохраняйте это положение до конца подхода',
+							'Тяните вес к животу, концентрируясь на движении локтей назад и сведении лопаток',
+							'Избегайте чрезмерного вытягивания шеи вперед — держите голову в одну линию с позвоночником',
+							'В нижней точке полностью выпрямляйте руки, чтобы максимально растянуть широчайшие',
+						],
+						equipment: ['Тренажер Т-гриф с упором'],
+						difficulty: 'Новичок',
+					},
+					{
+						id: 'leverage-seated-row-supported',
+						name: 'Рычажная тяга с упором грудью',
+						description:
+							'Эффективное упражнение для акцентированной проработки середины спины и широчайших. Упор в грудь позволяет полностью изолировать целевые мышцы, исключая читинг и снижая риск травм поясничного отдела.',
+						image: require('@/assets/training-videos/v52/v2.png'),
+						imagePosition: {
+							width: '135%',
+							left: 0,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v52/v1.png'),
+							require('@/assets/training-videos/v52/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_lever_row_supported.mp4',
+						primaryMuscles: ['Широчайшие', 'Ромбовидные'],
+						secondaryMuscles: ['Трапеции (средняя и нижняя части)', 'Задняя дельта', 'Бицепс'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftBiceps', 'rightBiceps'],
+						primaryBackMuscles: ['leftLats', 'rightLats'],
+						secondaryBackMuscles: ['traps', 'leftRearDeltoid', 'rightRearDeltoid'],
+						tips: [
+							'Отрегулируйте сиденье так, чтобы рукоятки были на уровне середины вашего пресса или чуть выше',
+							'Плотно прижмитесь грудью к подушке и сохраняйте контакт на протяжении всего подхода',
+							'Тяните рычаги на себя мощным движением локтей назад, сводя лопатки в финальной точке',
+							'Медленно возвращайте рукоятки в исходное положение, чувствуя растяжение мышц спины',
+							'Старайтесь тянуть именно спиной, а не руками — представляйте локти как крюки'
+						],
+						equipment: ['Рычажный тренажер'],
+						difficulty: 'Новичок',
+					},
+					{
+						id: 'v-bar-lat-pulldown',
+						name: 'Вертикальная тяга параллельным хватом',
+						description:
+							'Базовое упражнение для проработки широчайших мышц спины. Использование параллельного хвата позволяет увеличить амплитуду движения и сместить акцент на нижние отделы широчайших, а также на ромбовидные мышцы.',
+						image: require('@/assets/training-videos/v53/v1.png'),
+						imagePosition: {
+							width: '130%',
+							left: -15,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v53/v1.png'),
+							require('@/assets/training-videos/v53/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_vbar_pulldown.mp4',
+						primaryMuscles: ['Широчайшие'],
+						secondaryMuscles: ['Ромбовидные', 'Бицепс', 'Задняя дельта', 'Нижняя часть трапеций'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftBiceps', 'rightBiceps'],
+						primaryBackMuscles: ['leftLats', 'rightLats'],
+						secondaryBackMuscles: ['traps', 'leftRearDeltoid', 'rightRearDeltoid'],
+						tips: [
+							'Слегка отклоните корпус назад и зафиксируйте ноги под валиками тренажера',
+							'Тяните рукоять к верхней части груди, концентрируясь на том, чтобы вести локти вниз и сводить лопатки',
+							'В нижней точке сделайте небольшую паузу, максимально сжимая мышцы спины',
+							'Контролируйте возвращение рукояти вверх, полностью растягивая широчайшие, но не расслабляя их',
+							'Избегайте сильной раскачки корпусом; движение должно быть подконтрольным'
+						],
+						equipment: ['Блочный тренажер (Вертикальная тяга)', 'V-образная рукоять'],
+						difficulty: 'Новичок',
+					},
+					{
+						id: 'wide-grip-lat-pulldown',
+						name: 'Тяга верхнего блока к груди (широкий хват)',
+						description:
+							'Базовое упражнение для развития ширины спины. Широкий хват позволяет максимально изолировать широчайшие мышцы, минимизируя работу бицепсов по сравнению с узким хватом.',
+						image: require('@/assets/training-videos/v54/v1.png'),
+						imagePosition: {
+							width: '130%',
+							left: -10,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v54/v1.png'),
+							require('@/assets/training-videos/v54/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_wide_lat_pulldown.mp4',
+						primaryMuscles: ['Широчайшие'],
+						secondaryMuscles: ['Большая круглая мышца', 'Задняя дельта', 'Трапеции (нижняя часть)', 'Бицепс'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftBiceps', 'rightBiceps'],
+						primaryBackMuscles: ['leftLats', 'rightLats'],
+						secondaryBackMuscles: ['traps', 'leftRearDeltoid', 'rightRearDeltoid'],
+						tips: [
+							'Возьмитесь за гриф хватом шире плеч, ладонями от себя',
+							'Тяните гриф к верхней части груди, отклоняя локти немного назад и сводя лопатки',
+							'Старайтесь тянуть именно локтями, а не кистями, чтобы выключить бицепс из работы',
+							'Не отклоняйте корпус слишком сильно назад — сохраняйте небольшое контролируемое отклонение',
+							'Медленно возвращайте гриф вверх, полностью растягивая широчайшие в верхней точке'
+						],
+						equipment: ['Блочный тренажер (Вертикальная тяга)', 'Длинная рукоять'],
+						difficulty: 'Новичок',
+					},
+					{
+						id: 'seated-lever-row-parallel-grip',
+						name: 'Рычажная тяга параллельным хватом',
+						description:
+							'Базовое упражнение в тренажере для проработки толщины спины. Нейтральный хват обеспечивает наиболее естественную траекторию движения для локтевых суставов, позволяя максимально свести лопатки и нагрузить центр спины.',
+						image: require('@/assets/training-videos/v55/v1.png'),
+						imagePosition: {
+							width: '135%',
+							left: -20,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v55/v1.png'),
+							require('@/assets/training-videos/v55/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_parallel_lever_row.mp4',
+						primaryMuscles: ['Широчайшие', 'Ромбовидные'],
+						secondaryMuscles: ['Трапеции (средняя часть)', 'Задняя дельта', 'Бицепс', 'Брахиалис'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftBiceps', 'rightBiceps'],
+						primaryBackMuscles: ['leftLats', 'rightLats'],
+						secondaryBackMuscles: ['traps', 'leftRearDeltoid', 'rightRearDeltoid'],
+						tips: [
+							'Сядьте ровно, упритесь ногами в платформы и возьмитесь за параллельные рукояти',
+							'Притяните рукояти к себе, стараясь вести локти вплотную к туловищу',
+							'В конечной точке максимально сведите лопатки и сделайте паузу на пиковом сокращении',
+							'Плавно возвращайте вес в исходное положение, полностью распрямляя руки и растягивая спину',
+							'Держите грудь расправленной и не позволяйте плечам подниматься к ушам'
+						],
+						equipment: ['Рычажный тренажер'],
+						difficulty: 'Новичок',
+					},
+					{
+						id: 'diverging-lat-pulldown-machine',
+						name: 'Тяга верхнего блока (дуговой тренажёр)',
+						description:
+							'Упражнение на рычажном тренажёре с дуговой траекторией движения. Такая конструкция имитирует естественное движение рук, обеспечивая максимальное растяжение в верхней точке и глубокую проработку широчайших в нижней.',
+						image: require('@/assets/training-videos/v56/v1.png'),
+						imagePosition: {
+							width: '135%',
+							left: -15,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v56/v1.png'),
+							require('@/assets/training-videos/v56/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_diverging_lat_pulldown.mp4',
+						primaryMuscles: ['Широчайшие'],
+						secondaryMuscles: ['Большая круглая мышца', 'Задняя дельта', 'Трапеции (нижняя часть)', 'Бицепс'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftBiceps', 'rightBiceps'],
+						primaryBackMuscles: ['leftLats', 'rightLats'],
+						secondaryBackMuscles: ['traps', 'leftRearDeltoid', 'rightRearDeltoid'],
+						tips: [
+							'Отрегулируйте валики так, чтобы бедра были плотно зафиксированы',
+							'Возьмитесь за рукояти и тяните их вниз, концентрируясь на том, чтобы локти уходили в стороны и вниз по дуге',
+							'В нижней точке движения максимально сведите лопатки, раскрывая грудную клетку',
+							'Медленно возвращайте рукояти вверх, полностью растягивая широчайшие мышцы',
+							'Старайтесь не помогать себе рывками корпуса — спина должна быть неподвижной'
+						],
+						equipment: ['Дуговой тренажёр (Diverging Lat Pulldown)'],
+						difficulty: 'Новичок',
+					},
+					{
+						id: 'hyperextension',
+						name: 'Гиперэкстензия',
+						description:
+							'Упражнение для укрепления выпрямителей позвоночника, ягодиц и бицепсов бедра. Помогает улучшить осанку и стабилизировать поясничный отдел, что критически важно при выполнении тяжелых базовых упражнений.',
+						image: require('@/assets/training-videos/v57/v2.png'),
+						imagePosition: {
+							width: '135%',
+							left: -30,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v57/v1.png'),
+							require('@/assets/training-videos/v57/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_hyperextension.mp4',
+						primaryMuscles: ['Разгибатели спины'],
+						secondaryMuscles: ['Ягодичные', 'Бицепс бедра'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: [],
+						primaryBackMuscles: ['lowerBack'],
+						secondaryBackMuscles: ['gluteus', 'hamstrings'],
+						tips: [
+							'Настройте тренажер так, чтобы верхний край подушек находился чуть ниже линии сгиба бедра',
+							'Опускайтесь плавно, сохраняя спину прямой, до ощущения растяжения в задней поверхности бедра',
+							'Поднимайтесь до прямой линии с корпусом. Не допускайте чрезмерного переразгибания (прогиба) в пояснице в верхней точке',
+							'Держите руки скрещенными на груди или за головой (без давления на шею)',
+							'Выполняйте движение подконтрольно, избегая инерции и рывков'
+						],
+						equipment: ['Тренажер для гиперэкстензии'],
+						difficulty: 'Новичок',
+					},
+					{
+						id: 'wide-grip-pull-ups',
+						name: 'Подтягивания широким хватом',
+						description:
+							'Фундаментальное упражнение с собственным весом для развития широчайших мышц спины. Широкая постановка рук максимально акцентирует нагрузку на внешних отделах спины, создавая выразительный V-образный силуэт.',
+						image: require('@/assets/training-videos/v60/v2.png'),
+						imagePosition: {
+							width: '130%',
+							left: 0,
+							scaleX: 1
+						},
+						images: [
+							require('@/assets/training-videos/v60/v1.png'),
+							require('@/assets/training-videos/v60/v2.png'),
+						],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_wide_pullups.mp4',
+						primaryMuscles: ['Широчайшие'],
+						secondaryMuscles: ['Большая круглая мышца', 'Задняя дельта', 'Бицепс', 'Трапеции (нижняя часть)', 'Предплечья'],
+						primaryFrontMuscles: [],
+						secondaryFrontMuscles: ['leftBiceps', 'rightBiceps', 'leftForearms', 'rightForearms'],
+						primaryBackMuscles: ['leftLats', 'rightLats'],
+						secondaryBackMuscles: ['traps', 'leftRearDeltoid', 'rightRearDeltoid'],
+						tips: [
+							'Возьмитесь за перекладину хватом значительно шире плеч',
+							'Тянитесь грудью к перекладине, концентрируясь на сведении лопаток и движении локтей вниз',
+							'Избегайте раскачки (киппинга) — движение должно быть строгим и подконтрольным',
+							'В верхней точке постарайтесь коснуться перекладины верхней частью груди',
+							'Медленно опускайтесь вниз до полного растяжения мышц, но не расслабляйте плечи полностью в нижней точке'
+						],
+						equipment: ['Турник'],
 						difficulty: 'Средний',
-						variations: [
-							'С гантелями',
-							'В кроссовере',
-							'С резиновой лентой'
-						]
-					}
+					},
 				]
 			},
 			{
