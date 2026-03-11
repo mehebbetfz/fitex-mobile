@@ -1,10 +1,10 @@
 import * as db from '@/scripts/database'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
 	ActivityIndicator,
-	Alert,
+	Animated,
 	FlatList,
 	Modal,
 	StyleSheet,
@@ -33,641 +33,709 @@ const CATEGORIES = [
 	{ id: 'endurance', name: 'Выносливость', icon: 'time' },
 ]
 
+const CATEGORY_COLORS: Record<string, string> = {
+	strength: '#FF9500',
+	cardio: '#FF2D55',
+	endurance: '#5856D6',
+}
+
+// Количество рекордов для загрузки за раз
+const PAGE_SIZE = 10
+
+const getTrendColor = (t: string) =>
+	t === 'up' ? '#34C759' : t === 'down' ? '#FF3B30' : '#8E8E93'
+const getTrendIcon = (t: string) =>
+	t === 'up' ? 'trending-up' : t === 'down' ? 'trending-down' : 'remove'
+
+// ── Shimmer animation hook ──
+const useShimmer = () => {
+	const anim = useRef(new Animated.Value(0)).current
+	useEffect(() => {
+		const loop = Animated.loop(
+			Animated.sequence([
+				Animated.timing(anim, {
+					toValue: 1,
+					duration: 750,
+					useNativeDriver: true,
+				}),
+				Animated.timing(anim, {
+					toValue: 0,
+					duration: 750,
+					useNativeDriver: true,
+				}),
+			]),
+		)
+		loop.start()
+		return () => loop.stop()
+	}, [])
+	return anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] })
+}
+
+const ShimmerBlock = ({ style }: { style: any }) => {
+	const opacity = useShimmer()
+	return <Animated.View style={[style, { opacity }]} />
+}
+
+// ── Скелетон карточки рекорда ──
+const RecordCardSkeleton = () => (
+	<View style={s.recordItem}>
+		<ShimmerBlock style={[s.categoryBar, { backgroundColor: '#2C2C2E' }]} />
+		<View style={s.recordBody}>
+			<ShimmerBlock
+				style={[
+					s.exerciseName,
+					{ width: '60%', height: 16, backgroundColor: '#2C2C2E' },
+				]}
+			/>
+			<View style={s.recordMeta}>
+				<ShimmerBlock
+					style={{
+						width: 70,
+						height: 12,
+						backgroundColor: '#2C2C2E',
+						borderRadius: 4,
+					}}
+				/>
+			</View>
+		</View>
+		<View style={s.recordRight}>
+			<ShimmerBlock
+				style={[
+					s.recordWeight,
+					{ width: 60, height: 15, backgroundColor: '#2C2C2E' },
+				]}
+			/>
+			<ShimmerBlock
+				style={{
+					width: 45,
+					height: 11,
+					backgroundColor: '#2C2C2E',
+					borderRadius: 4,
+					marginTop: 3,
+				}}
+			/>
+		</View>
+	</View>
+)
+
+// ── Скелетон статистики ──
+const StatsSkeleton = () => (
+	<View style={s.statsRow}>
+		{[1, 2, 3].map(i => (
+			<ShimmerBlock
+				key={i}
+				style={[s.statCard, { height: 70, backgroundColor: '#2C2C2E' }]}
+			/>
+		))}
+	</View>
+)
+
+// ── Скелетон фильтров ──
+const FilterSkeleton = () => (
+	<View style={s.filterRow}>
+		<FlatList
+			horizontal
+			data={[1, 2, 3, 4]}
+			keyExtractor={item => item.toString()}
+			showsHorizontalScrollIndicator={false}
+			contentContainerStyle={{ gap: 8 }}
+			renderItem={() => (
+				<ShimmerBlock
+					style={[
+						s.filterChip,
+						{ width: 70, height: 34, backgroundColor: '#2C2C2E' },
+					]}
+				/>
+			)}
+		/>
+	</View>
+)
+
+// ── Скелетон для подгрузки ──
+const LoadingFooter = () => (
+	<View style={s.loadingFooter}>
+		<ActivityIndicator size='small' color='#34C759' />
+		<Text style={s.loadingFooterText}>Загрузка рекордов...</Text>
+	</View>
+)
+
+// ── Полный скелетон для первой загрузки ──
+const InitialLoadingSkeleton = () => (
+	<SafeAreaView style={s.container}>
+		<View style={s.header}>
+			<ShimmerBlock
+				style={[
+					s.iconBtn,
+					{
+						width: 30,
+						height: 30,
+						borderRadius: 15,
+						backgroundColor: '#2C2C2E',
+					},
+				]}
+			/>
+			<View style={{ alignItems: 'center' }}>
+				<ShimmerBlock
+					style={[
+						s.headerTitle,
+						{ width: 140, height: 18, backgroundColor: '#2C2C2E' },
+					]}
+				/>
+				<ShimmerBlock
+					style={[
+						s.headerSub,
+						{
+							width: 120,
+							height: 11,
+							marginTop: 4,
+							backgroundColor: '#2C2C2E',
+						},
+					]}
+				/>
+			</View>
+			<ShimmerBlock
+				style={[
+					s.autoBadge,
+					{ width: 70, height: 30, backgroundColor: '#2C2C2E' },
+				]}
+			/>
+		</View>
+
+		<StatsSkeleton />
+		<FilterSkeleton />
+
+		<View style={s.listContent}>
+			{[1, 2, 3, 4, 5].map(i => (
+				<RecordCardSkeleton key={i} />
+			))}
+		</View>
+	</SafeAreaView>
+)
+
 export default function RecordsHistoryScreen() {
 	const router = useRouter()
 	const [selectedCategory, setSelectedCategory] = useState('all')
 	const [selectedRecord, setSelectedRecord] = useState<Record | null>(null)
 	const [modalVisible, setModalVisible] = useState(false)
-	const [records, setRecords] = useState<Record[]>([])
+	const [allRecords, setAllRecords] = useState<Record[]>([])
 	const [loading, setLoading] = useState(true)
 
-	useEffect(() => {
-		loadRecords()
-	}, [selectedCategory])
+	// Состояния для пагинации
+	const [displayedRecords, setDisplayedRecords] = useState<Record[]>([])
+	const [currentPage, setCurrentPage] = useState(1)
+	const [hasMore, setHasMore] = useState(true)
+	const [isLoadingMore, setIsLoadingMore] = useState(false)
+	const [isInitialLoading, setIsInitialLoading] = useState(true)
 
-	const loadRecords = async () => {
+	const loadRecords = async (category?: string) => {
 		try {
-			setLoading(true)
-			const dbRecords = await db.getPersonalRecords(
-				selectedCategory !== 'all' ? selectedCategory : undefined,
-			)
+			const dbRecords = await db.getPersonalRecords(category)
+			return dbRecords.map((r, i) => ({
+				id: r.id?.toString() || i.toString(),
+				exercise: r.exercise,
+				weight: r.weight,
+				date: r.date,
+				trend: r.trend,
+				category: r.category,
+				notes: r.notes,
+				previousRecord: r.previous_record,
+				improvement: r.improvement,
+			}))
+		} catch {
+			console.error('Error loading records')
+			return []
+		}
+	}
 
-			const formattedRecords: Record[] = dbRecords.map((r, index) => {
-				return {
-					id: r.id?.toString() || index.toString(),
-					exercise: r.exercise,
-					weight: r.weight,
-					date: r.date,
-					trend: r.trend,
-					category: r.category,
-					notes: r.notes,
-					previousRecord: r.previous_record,
-					improvement: r.improvement,
-				}
-			})
-
-			setRecords(formattedRecords)
-		} catch (error) {
-			console.error('Error loading records:', error)
-		} finally {
+	// Первоначальная загрузка
+	useEffect(() => {
+		const loadInitialData = async () => {
+			setIsInitialLoading(true)
+			const records = await loadRecords()
+			setAllRecords(records)
+			setIsInitialLoading(false)
 			setLoading(false)
 		}
-	}
+		loadInitialData()
+	}, [])
 
-	const filteredRecords = records.filter(
-		record =>
-			selectedCategory === 'all' || record.category === selectedCategory,
+	// Загрузка при смене категории
+	useEffect(() => {
+		const loadCategoryData = async () => {
+			if (isInitialLoading) return
+
+			setLoading(true)
+			const records = await loadRecords(
+				selectedCategory !== 'all' ? selectedCategory : undefined,
+			)
+			setAllRecords(records)
+			setLoading(false)
+		}
+		loadCategoryData()
+	}, [selectedCategory])
+
+	// Обновление при фокусе
+	useFocusEffect(
+		useCallback(() => {
+			if (!isInitialLoading) {
+				const refreshData = async () => {
+					const records = await loadRecords(
+						selectedCategory !== 'all' ? selectedCategory : undefined,
+					)
+					setAllRecords(records)
+				}
+				refreshData()
+			}
+		}, [selectedCategory, isInitialLoading]),
 	)
 
-	const getCategoryColor = (category: string) => {
-		switch (category) {
-			case 'strength':
-				return '#FF9500'
-			case 'cardio':
-				return '#FF2D55'
-			case 'endurance':
-				return '#5856D6'
-			default:
-				return '#34C759'
-		}
+	// Обновление отображаемых рекордов при изменении всех рекордов
+	useEffect(() => {
+		setCurrentPage(1)
+		setDisplayedRecords(allRecords.slice(0, PAGE_SIZE))
+		setHasMore(allRecords.length > PAGE_SIZE)
+	}, [allRecords])
+
+	// Загрузка следующей порции
+	const loadNextPage = useCallback(() => {
+		if (isLoadingMore || !hasMore || loading) return
+
+		setIsLoadingMore(true)
+
+		// Небольшая задержка для плавности
+		setTimeout(() => {
+			const nextPage = currentPage + 1
+			const endIndex = nextPage * PAGE_SIZE
+			const newRecords = allRecords.slice(0, endIndex)
+
+			setDisplayedRecords(newRecords)
+			setCurrentPage(nextPage)
+			setHasMore(allRecords.length > endIndex)
+			setIsLoadingMore(false)
+		}, 500)
+	}, [currentPage, allRecords, hasMore, isLoadingMore, loading])
+
+	const renderFooter = () => {
+		if (!hasMore) return null
+		if (isLoadingMore) return <LoadingFooter />
+		return null
 	}
 
-	const getTrendIcon = (trend: string) => {
-		switch (trend) {
-			case 'up':
-				return { name: 'arrow-up', color: '#34C759' }
-			case 'down':
-				return { name: 'arrow-down', color: '#FF3B30' }
-			default:
-				return { name: 'remove', color: '#8E8E93' }
-		}
-	}
-
-	const renderRecordItem = ({ item }: { item: Record }) => (
+	const renderItem = ({ item }: { item: Record }) => (
 		<TouchableOpacity
-			style={styles.recordItem}
+			style={s.recordItem}
 			onPress={() => {
 				setSelectedRecord(item)
 				setModalVisible(true)
 			}}
+			activeOpacity={0.7}
 		>
-			<View style={styles.recordHeader}>
-				<View style={styles.exerciseInfo}>
-					<View
-						style={[
-							styles.categoryIndicator,
-							{ backgroundColor: getCategoryColor(item.category) },
-						]}
-					/>
-					<Text style={styles.exerciseName}>{item.exercise}</Text>
-				</View>
-				<View style={styles.weightContainer}>
-					<Text style={styles.weightText}>{item.weight}</Text>
-				</View>
-			</View>
-
-			<View style={styles.recordDetails}>
-				<View style={styles.dateContainer}>
-					<Ionicons name='calendar' size={14} color='#8E8E93' />
-					<Text style={styles.dateText}>
+			<View
+				style={[
+					s.categoryBar,
+					{ backgroundColor: CATEGORY_COLORS[item.category] ?? '#34C759' },
+				]}
+			/>
+			<View style={s.recordBody}>
+				<Text style={s.exerciseName} numberOfLines={1}>
+					{item.exercise}
+				</Text>
+				<View style={s.recordMeta}>
+					<Ionicons name='calendar-outline' size={12} color='#8E8E93' />
+					<Text style={s.recordDate}>
 						{db.formatDate(item.date) || item.date}
 					</Text>
+					{item.notes ? (
+						<Text style={s.recordNotes} numberOfLines={1}>
+							· {item.notes}
+						</Text>
+					) : null}
 				</View>
-
-				{item.improvement && (
-					<View style={styles.improvementContainer}>
+			</View>
+			<View style={s.recordRight}>
+				<Text style={s.recordWeight}>{item.weight}</Text>
+				{item.improvement ? (
+					<View style={s.improveBadge}>
 						<Ionicons
-							name={getTrendIcon(item.trend).name as any}
-							size={14}
-							color={getTrendIcon(item.trend).color}
+							name={getTrendIcon(item.trend) as any}
+							size={11}
+							color={getTrendColor(item.trend)}
 						/>
-						<Text
-							style={[
-								styles.improvementText,
-								{ color: getTrendIcon(item.trend).color },
-							]}
-						>
+						<Text style={[s.improveText, { color: getTrendColor(item.trend) }]}>
 							{item.improvement}
 						</Text>
 					</View>
-				)}
+				) : null}
 			</View>
-
-			{item.notes && (
-				<Text style={styles.notesText} numberOfLines={1}>
-					{item.notes}
-				</Text>
-			)}
 		</TouchableOpacity>
 	)
 
-	const handleAddRecord = () => {
-		router.push('/(routes)/add-record')
+	// Показываем полный скелетон при первой загрузке
+	if (isInitialLoading) {
+		return <InitialLoadingSkeleton />
 	}
-
-	const handleEditRecord = (id: string) => {
-		router.push(`/(routes)/edit-record/${id}`)
-	}
-
-	useFocusEffect(
-		useCallback(() => {
-			// Очистка при размонтировании (опционально)
-			loadRecords()
-			return () => {
-				// Здесь можно выполнить очистку, если нужно
-			}
-		}, []),
-	)
 
 	return (
-		<SafeAreaView style={styles.container}>
-			{/* Заголовок */}
-			<View style={styles.header}>
-				<TouchableOpacity
-					style={styles.backButton}
-					onPress={() => router.back()}
-				>
-					<Ionicons name='arrow-back' size={24} color='#FFFFFF' />
+		<SafeAreaView style={s.container}>
+			{/* Header */}
+			<View style={s.header}>
+				<TouchableOpacity onPress={() => router.back()} style={s.iconBtn}>
+					<Ionicons name='arrow-back' size={22} color='#FFF' />
 				</TouchableOpacity>
-				<Text style={styles.headerTitle}>История рекордов</Text>
-				<TouchableOpacity style={styles.addButton} onPress={handleAddRecord}>
-					<Ionicons name='add' size={24} color='#34C759' />
-				</TouchableOpacity>
+				<View>
+					<Text style={s.headerTitle}>Личные рекорды</Text>
+					<Text style={s.headerSub}>Обновляются автоматически</Text>
+				</View>
+				<View style={s.autoBadge}>
+					<Ionicons name='flash' size={14} color='#FF9500' />
+					<Text style={s.autoBadgeText}>Авто</Text>
+				</View>
 			</View>
 
-			{/* Фильтры по категориям */}
-			<View style={styles.categoriesContainer}>
+			{/* Quick stats */}
+			<View style={s.statsRow}>
+				<View style={s.statCard}>
+					<Text style={s.statValue}>{allRecords.length}</Text>
+					<Text style={s.statLabel}>Рекордов</Text>
+				</View>
+				<View style={s.statCard}>
+					<Text style={[s.statValue, { color: '#34C759' }]}>
+						{allRecords.filter(r => r.trend === 'up').length}
+					</Text>
+					<Text style={s.statLabel}>Улучшено</Text>
+				</View>
+				<View style={s.statCard}>
+					<Text style={[s.statValue, { color: '#FF9500' }]}>
+						{allRecords.filter(r => r.category === 'strength').length}
+					</Text>
+					<Text style={s.statLabel}>Силовых</Text>
+				</View>
+			</View>
+
+			{/* Category filter */}
+			<View style={s.filterRow}>
 				<FlatList
-					data={CATEGORIES}
 					horizontal
-					showsHorizontalScrollIndicator={false}
-					contentContainerStyle={styles.categoriesList}
-					renderItem={({ item }) => (
-						<TouchableOpacity
-							style={[
-								styles.categoryButton,
-								selectedCategory === item.id && styles.activeCategoryButton,
-							]}
-							onPress={() => setSelectedCategory(item.id)}
-						>
-							<Ionicons
-								name={item.icon as any}
-								size={16}
-								color={selectedCategory === item.id ? '#FFFFFF' : '#8E8E93'}
-							/>
-							<Text
-								style={[
-									styles.categoryText,
-									selectedCategory === item.id && styles.activeCategoryText,
-								]}
-							>
-								{item.name}
-							</Text>
-						</TouchableOpacity>
-					)}
+					data={CATEGORIES}
 					keyExtractor={item => item.id}
+					showsHorizontalScrollIndicator={false}
+					contentContainerStyle={{ gap: 8 }}
+					renderItem={({ item }) => {
+						const active = selectedCategory === item.id
+
+						return (
+							<TouchableOpacity
+								style={[s.filterChip, active && s.filterChipActive]}
+								onPress={() => setSelectedCategory(item.id)}
+							>
+								<Ionicons
+									name={item.icon as any}
+									size={14}
+									color={active ? '#FFF' : '#8E8E93'}
+								/>
+								<Text
+									style={[s.filterChipText, active && s.filterChipTextActive]}
+								>
+									{item.name}
+								</Text>
+							</TouchableOpacity>
+						)
+					}}
 				/>
 			</View>
 
-			{/* Статистика */}
-			<View style={styles.statsContainer}>
-				<View style={styles.statCard}>
-					<Text style={styles.statValue}>{records.length.toString()}</Text>
-					<Text style={styles.statLabel}>Всего рекордов</Text>
-				</View>
-				<View style={styles.statCard}>
-					<Text style={[styles.statValue, { color: '#34C759' }]}>
-						{records.filter(r => r.trend === 'up').length.toString()}
-					</Text>
-					<Text style={styles.statLabel}>Улучшено</Text>
-				</View>
-				<View style={styles.statCard}>
-					<Text style={[styles.statValue, { color: '#FF9500' }]}>
-						{records.filter(r => r.category === 'strength').length.toString()}
-					</Text>
-					<Text style={styles.statLabel}>Силовых</Text>
-				</View>
-			</View>
-
-			{/* Список рекордов */}
+			{/* List with pagination */}
 			{loading ? (
-				<View style={styles.loadingContainer}>
-					<ActivityIndicator size='large' color='#34C759' />
+				<View style={s.listContent}>
+					{[1, 2, 3].map(i => (
+						<RecordCardSkeleton key={i} />
+					))}
 				</View>
 			) : (
 				<FlatList
-					data={filteredRecords}
-					renderItem={renderRecordItem}
+					data={displayedRecords}
+					renderItem={renderItem}
 					keyExtractor={item => item.id}
-					contentContainerStyle={styles.listContainer}
+					contentContainerStyle={s.listContent}
 					showsVerticalScrollIndicator={false}
+					onEndReached={loadNextPage}
+					onEndReachedThreshold={0.3}
+					ListFooterComponent={renderFooter}
 					ListEmptyComponent={
-						<View style={styles.emptyContainer}>
-							<Ionicons name='trophy' size={64} color='#2C2C2E' />
-							<Text style={styles.emptyText}>Нет рекордов</Text>
-							<Text style={styles.emptySubtext}>
-								Добавьте свой первый рекорд
+						<View style={s.emptyWrap}>
+							<Ionicons name='trophy-outline' size={48} color='#3A3A3C' />
+							<Text style={s.emptyTitle}>Нет рекордов</Text>
+							<Text style={s.emptyText}>
+								Рекорды появятся автоматически{'\n'}после завершения тренировки
 							</Text>
 						</View>
 					}
 				/>
 			)}
 
-			{/* Модальное окно с деталями */}
+			{/* Detail modal */}
 			<Modal
 				animationType='slide'
-				transparent={true}
+				transparent
 				visible={modalVisible}
 				onRequestClose={() => setModalVisible(false)}
 			>
-				<View style={styles.modalOverlay}>
-					<View style={styles.modalContent}>
+				<View style={s.modalOverlay}>
+					<View style={s.modalContent}>
 						{selectedRecord && (
 							<>
-								<View style={styles.modalHeader}>
-									<Text style={styles.modalTitle}>
+								<View style={s.modalHeader}>
+									<View
+										style={[
+											s.modalCatDot,
+											{
+												backgroundColor:
+													CATEGORY_COLORS[selectedRecord.category] ?? '#34C759',
+											},
+										]}
+									/>
+									<Text style={s.modalTitle} numberOfLines={1}>
 										{selectedRecord.exercise}
 									</Text>
-									<TouchableOpacity
-										onPress={() => setModalVisible(false)}
-										style={styles.closeButton}
-									>
-										<Ionicons name='close' size={24} color='#8E8E93' />
+									<TouchableOpacity onPress={() => setModalVisible(false)}>
+										<Ionicons name='close' size={22} color='#8E8E93' />
 									</TouchableOpacity>
 								</View>
 
-								<View style={styles.modalBody}>
-									<View style={styles.modalStatRow}>
-										<View style={styles.modalStat}>
-											<Text style={styles.modalStatLabel}>Текущий рекорд</Text>
-											<Text style={styles.modalStatValue}>
-												{selectedRecord.weight}
-											</Text>
-										</View>
-										<View style={styles.modalStat}>
-											<Text style={styles.modalStatLabel}>Предыдущий</Text>
-											<Text style={styles.modalStatValue}>
-												{selectedRecord.previousRecord || 'Нет данных'}
-											</Text>
-										</View>
+								<View style={s.modalStatsRow}>
+									<View style={s.modalStat}>
+										<Text style={s.modalStatLabel}>Рекорд</Text>
+										<Text style={s.modalStatValue}>
+											{selectedRecord.weight}
+										</Text>
 									</View>
-
-									<View style={styles.modalStatRow}>
-										<View style={styles.modalStat}>
-											<Text style={styles.modalStatLabel}>Улучшение</Text>
-											<View style={styles.improvementBadge}>
-												<Ionicons
-													name={getTrendIcon(selectedRecord.trend).name as any}
-													size={16}
-													color={getTrendIcon(selectedRecord.trend).color}
-												/>
-												<Text
-													style={[
-														styles.improvementText,
-														{
-															color: getTrendIcon(selectedRecord.trend).color,
-														},
-													]}
-												>
-													{selectedRecord.improvement || '0'}
-												</Text>
-											</View>
-										</View>
-										<View style={styles.modalStat}>
-											<Text style={styles.modalStatLabel}>Дата</Text>
-											<View style={styles.dateBadge}>
-												<Ionicons name='calendar' size={16} color='#8E8E93' />
-												<Text style={styles.dateText}>
-													{db.formatDate(selectedRecord.date) ||
-														selectedRecord.date}
-												</Text>
-											</View>
-										</View>
+									<View style={s.modalStat}>
+										<Text style={s.modalStatLabel}>Предыдущий</Text>
+										<Text style={s.modalStatValue}>
+											{selectedRecord.previousRecord || '—'}
+										</Text>
 									</View>
-
-									{selectedRecord.notes && (
-										<View style={styles.notesContainer}>
-											<Text style={styles.notesLabel}>Заметки</Text>
-											<Text style={styles.notesContent}>
-												{selectedRecord.notes}
-											</Text>
-										</View>
-									)}
-
-									<View style={styles.modalActions}>
-										<TouchableOpacity
-											style={styles.editButton}
-											onPress={() => {
-												setModalVisible(false)
-												handleEditRecord(selectedRecord.id)
+									<View style={s.modalStat}>
+										<Text style={s.modalStatLabel}>Прогресс</Text>
+										<View
+											style={{
+												flexDirection: 'row',
+												alignItems: 'center',
+												gap: 4,
 											}}
 										>
-											<Ionicons name='create' size={20} color='#FFFFFF' />
-											<Text style={styles.editButtonText}>Редактировать</Text>
-										</TouchableOpacity>
+											<Ionicons
+												name={getTrendIcon(selectedRecord.trend) as any}
+												size={14}
+												color={getTrendColor(selectedRecord.trend)}
+											/>
+											<Text
+												style={[
+													s.modalStatValue,
+													{ color: getTrendColor(selectedRecord.trend) },
+												]}
+											>
+												{selectedRecord.improvement || '—'}
+											</Text>
+										</View>
 									</View>
 								</View>
+
+								<View style={s.modalDateRow}>
+									<Ionicons name='calendar-outline' size={14} color='#8E8E93' />
+									<Text style={s.modalDate}>
+										{db.formatDate(selectedRecord.date) || selectedRecord.date}
+									</Text>
+									<View style={s.autoTag}>
+										<Ionicons name='flash' size={11} color='#FF9500' />
+										<Text style={s.autoTagText}>Авто</Text>
+									</View>
+								</View>
+
+								{selectedRecord.notes ? (
+									<View style={s.notesBox}>
+										<Text style={s.notesText}>{selectedRecord.notes}</Text>
+									</View>
+								) : null}
 							</>
 						)}
 					</View>
 				</View>
 			</Modal>
-
-			{/* Кнопка добавления */}
-			<TouchableOpacity style={styles.fab} onPress={handleAddRecord}>
-				<Ionicons name='add' size={24} color='#FFFFFF' />
-			</TouchableOpacity>
 		</SafeAreaView>
 	)
 }
 
-const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: '#121212',
-	},
+// Обновляем стили, добавляем новые
+const s = StyleSheet.create({
+	container: { flex: 1, backgroundColor: '#121212' },
+	center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
 	header: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
-		paddingHorizontal: 10,
-		paddingVertical: 16,
-		borderBottomWidth: 1,
-		borderBottomColor: '#2C2C2E',
-	},
-	backButton: {
-		padding: 4,
-	},
-	headerTitle: {
-		fontSize: 20,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-	},
-	addButton: {
-		padding: 4,
-	},
-	categoriesContainer: {
+		paddingHorizontal: 12,
 		paddingVertical: 12,
 		borderBottomWidth: 1,
 		borderBottomColor: '#2C2C2E',
 	},
-	categoriesList: {
-		paddingHorizontal: 10,
-		gap: 8,
-	},
-	categoryButton: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		backgroundColor: '#1E1E1E',
-		paddingHorizontal: 16,
-		paddingVertical: 8,
-		borderRadius: 20,
-		gap: 6,
-	},
-	activeCategoryButton: {
-		backgroundColor: '#34C759',
-	},
-	categoryText: {
-		fontSize: 14,
-		color: '#8E8E93',
-		fontWeight: '500',
-	},
-	activeCategoryText: {
-		color: '#FFFFFF',
-	},
-	statsContainer: {
-		flexDirection: 'row',
-		paddingHorizontal: 10,
-		paddingVertical: 16,
-		gap: 12,
-	},
-	statCard: {
-		flex: 1,
-		backgroundColor: '#1E1E1E',
-		borderRadius: 12,
-		padding: 16,
-		alignItems: 'center',
-	},
-	statValue: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-		marginBottom: 4,
-	},
-	statLabel: {
-		fontSize: 12,
-		color: '#8E8E93',
-	},
-	listContainer: {
-		paddingHorizontal: 10,
-		paddingTop: 8,
-		paddingBottom: 100,
-	},
-	recordItem: {
-		backgroundColor: '#1E1E1E',
-		borderRadius: 16,
-		padding: 16,
-		marginBottom: 12,
-	},
-	recordHeader: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 12,
-	},
-	exerciseInfo: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		flex: 1,
-	},
-	categoryIndicator: {
-		width: 4,
-		height: 24,
-		borderRadius: 2,
-		marginRight: 12,
-	},
-	exerciseName: {
-		fontSize: 18,
-		fontWeight: '600',
-		color: '#FFFFFF',
-	},
-	weightContainer: {
-		backgroundColor: '#2C2C2E',
-		paddingHorizontal: 12,
-		paddingVertical: 6,
-		borderRadius: 12,
-	},
-	weightText: {
-		fontSize: 16,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-	},
-	recordDetails: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 8,
-	},
-	dateContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 6,
-	},
-	dateText: {
-		fontSize: 14,
-		color: '#8E8E93',
-	},
-	improvementContainer: {
+	iconBtn: { padding: 4 },
+	headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
+	headerSub: { fontSize: 11, color: '#8E8E93', marginTop: 1 },
+	autoBadge: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 4,
+		backgroundColor: 'rgba(255,149,0,0.12)',
+		borderRadius: 20,
+		paddingHorizontal: 10,
+		paddingVertical: 5,
+		borderWidth: 1,
+		borderColor: 'rgba(255,149,0,0.2)',
 	},
-	improvementText: {
-		fontSize: 14,
-		fontWeight: '600',
+	autoBadgeText: { fontSize: 12, fontWeight: '600', color: '#FF9500' },
+
+	statsRow: {
+		flexDirection: 'row',
+		paddingHorizontal: 12,
+		paddingVertical: 12,
+		gap: 8,
 	},
-	notesText: {
-		fontSize: 14,
-		color: '#B0B0B0',
-		fontStyle: 'italic',
-	},
-	loadingContainer: {
+	statCard: {
 		flex: 1,
-		justifyContent: 'center',
+		backgroundColor: '#1C1C1E',
+		borderRadius: 12,
+		paddingVertical: 12,
 		alignItems: 'center',
+		borderWidth: 1,
+		borderColor: '#2C2C2E',
 	},
-	emptyContainer: {
-		alignItems: 'center',
-		justifyContent: 'center',
-		paddingVertical: 80,
-	},
-	emptyText: {
+	statValue: {
 		fontSize: 18,
-		color: '#FFFFFF',
-		fontWeight: '600',
-		marginTop: 16,
+		fontWeight: '700',
+		color: '#FFF',
+		marginBottom: 2,
+	},
+	statLabel: { fontSize: 11, color: '#8E8E93' },
+
+	filterRow: {
+		flexDirection: 'row',
+		paddingHorizontal: 12,
+		gap: 8,
 		marginBottom: 8,
+		flexWrap: 'wrap',
 	},
-	emptySubtext: {
-		fontSize: 14,
+	filterChip: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 5,
+		paddingHorizontal: 12,
+		paddingVertical: 7,
+		borderRadius: 20,
+		backgroundColor: '#1C1C1E',
+		borderWidth: 1,
+		borderColor: '#2C2C2E',
+	},
+	filterChipActive: { backgroundColor: '#34C759', borderColor: '#34C759' },
+	filterChipText: { fontSize: 13, fontWeight: '500', color: '#8E8E93' },
+	filterChipTextActive: { color: '#FFF' },
+
+	listContent: { paddingHorizontal: 12, paddingBottom: 40, gap: 6 },
+
+	recordItem: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		backgroundColor: '#1C1C1E',
+		borderRadius: 12,
+		borderWidth: 1,
+		borderColor: '#2C2C2E',
+		overflow: 'hidden',
+	},
+	categoryBar: { width: 3, alignSelf: 'stretch' },
+	recordBody: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, gap: 3 },
+	exerciseName: { fontSize: 14, fontWeight: '600', color: '#FFF' },
+	recordMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+	recordDate: { fontSize: 12, color: '#8E8E93' },
+	recordNotes: { fontSize: 12, color: '#8E8E93', flex: 1 },
+	recordRight: { paddingRight: 12, alignItems: 'flex-end', gap: 3 },
+	recordWeight: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+	improveBadge: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+	improveText: { fontSize: 11, fontWeight: '600' },
+
+	emptyWrap: { alignItems: 'center', paddingTop: 80, gap: 10 },
+	emptyTitle: { fontSize: 16, fontWeight: '600', color: '#FFF' },
+	emptyText: {
+		fontSize: 13,
 		color: '#8E8E93',
+		textAlign: 'center',
+		lineHeight: 20,
 	},
+
 	modalOverlay: {
 		flex: 1,
-		backgroundColor: 'rgba(0, 0, 0, 0.5)',
+		backgroundColor: 'rgba(0,0,0,0.6)',
 		justifyContent: 'flex-end',
 	},
 	modalContent: {
-		backgroundColor: '#1E1E1E',
-		borderTopLeftRadius: 24,
-		borderTopRightRadius: 24,
-		paddingTop: 24,
-		maxHeight: '80%',
+		backgroundColor: '#1C1C1E',
+		borderTopLeftRadius: 20,
+		borderTopRightRadius: 20,
+		padding: 20,
 	},
 	modalHeader: {
 		flexDirection: 'row',
-		justifyContent: 'space-between',
 		alignItems: 'center',
-		paddingHorizontal: 10,
-		marginBottom: 24,
+		gap: 10,
+		marginBottom: 16,
 	},
-	modalTitle: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-		flex: 1,
-	},
-	closeButton: {
-		padding: 4,
-	},
-	modalBody: {
-		paddingHorizontal: 10,
-		paddingBottom: 40,
-	},
-	modalStatRow: {
-		flexDirection: 'row',
-		gap: 16,
-		marginBottom: 24,
-	},
+	modalCatDot: { width: 10, height: 10, borderRadius: 5 },
+	modalTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: '#FFF' },
+	modalStatsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
 	modalStat: {
 		flex: 1,
+		backgroundColor: '#242424',
+		borderRadius: 10,
+		padding: 12,
+		gap: 4,
 	},
-	modalStatLabel: {
-		fontSize: 14,
-		color: '#8E8E93',
-		marginBottom: 8,
-	},
-	modalStatValue: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-	},
-	improvementBadge: {
+	modalStatLabel: { fontSize: 11, color: '#8E8E93' },
+	modalStatValue: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+	modalDateRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		backgroundColor: '#2C2C2E',
-		paddingHorizontal: 12,
-		paddingVertical: 8,
-		borderRadius: 12,
 		gap: 6,
-		alignSelf: 'flex-start',
+		marginBottom: 12,
 	},
-	dateBadge: {
+	modalDate: { fontSize: 13, color: '#8E8E93', flex: 1 },
+	autoTag: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		backgroundColor: '#2C2C2E',
-		paddingHorizontal: 12,
-		paddingVertical: 8,
-		borderRadius: 12,
-		gap: 6,
-		alignSelf: 'flex-start',
+		gap: 3,
+		backgroundColor: 'rgba(255,149,0,0.1)',
+		borderRadius: 8,
+		paddingHorizontal: 7,
+		paddingVertical: 3,
 	},
-	notesContainer: {
-		marginBottom: 32,
+	autoTagText: { fontSize: 11, color: '#FF9500', fontWeight: '600' },
+	notesBox: {
+		backgroundColor: '#242424',
+		borderRadius: 10,
+		padding: 12,
+		marginBottom: 4,
 	},
-	notesLabel: {
-		fontSize: 14,
-		color: '#8E8E93',
-		marginBottom: 8,
-	},
-	notesContent: {
-		fontSize: 16,
-		color: '#FFFFFF',
-		lineHeight: 24,
-	},
-	modalActions: {
-		flexDirection: 'row',
-		gap: 12,
-	},
-	editButton: {
-		flex: 1,
-		flexDirection: 'row',
+	notesText: { fontSize: 14, color: '#B0B0B0', lineHeight: 20 },
+
+	// Новые стили для пагинации и скелетонов
+	loadingFooter: {
+		paddingVertical: 20,
 		alignItems: 'center',
 		justifyContent: 'center',
-		backgroundColor: '#34C759',
-		paddingVertical: 14,
-		borderRadius: 12,
+		flexDirection: 'row',
 		gap: 8,
 	},
-	editButtonText: {
-		fontSize: 16,
-		color: '#FFFFFF',
-		fontWeight: '600',
-	},
-	fab: {
-		position: 'absolute',
-		bottom: 30,
-		right: 20,
-		width: 56,
-		height: 56,
-		borderRadius: 28,
-		backgroundColor: '#34C759',
-		alignItems: 'center',
-		justifyContent: 'center',
-		elevation: 8,
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.3,
-		shadowRadius: 4,
+	loadingFooterText: {
+		color: '#8E8E93',
+		fontSize: 14,
 	},
 })

@@ -18,7 +18,7 @@ const MEASUREMENT_TYPES = [
 	{ name: 'Грудь', unit: 'см', icon: 'body' },
 	{ name: 'Талия', unit: 'см', icon: 'body' },
 	{ name: 'Бедра', unit: 'см', icon: 'body' },
-	{ name: 'Бицепс', unit: 'см', icon: 'body' },
+	{ name: 'Бицепс', unit: 'см', icon: 'fitness' },
 	{ name: 'Шея', unit: 'см', icon: 'body' },
 	{ name: 'Икры', unit: 'см', icon: 'body' },
 	{ name: 'Плечо', unit: 'см', icon: 'body' },
@@ -38,9 +38,7 @@ export default function AddMeasurementScreen() {
 			Alert.alert('Ошибка', 'Введите значение измерения')
 			return
 		}
-
 		try {
-			// Рассчитываем тренд на основе предыдущих значений
 			const previousMeasurements = await db.getBodyMeasurements()
 			const previousForType = previousMeasurements
 				.filter(m => m.name === selectedType.name)
@@ -50,19 +48,16 @@ export default function AddMeasurementScreen() {
 
 			let trend: 'up' | 'down' | 'stable' = 'stable'
 			if (previousForType) {
-				const currentValue = parseFloat(value)
-				if (currentValue > previousForType.value) {
-					trend = 'up'
-				} else if (currentValue < previousForType.value) {
-					trend = 'down'
-				}
+				const cur = parseFloat(value)
+				if (cur > previousForType.value) trend = 'up'
+				else if (cur < previousForType.value) trend = 'down'
 			}
 
 			await db.addBodyMeasurement({
 				name: selectedType.name,
 				value: parseFloat(value),
 				unit: selectedType.unit,
-				date: date,
+				date,
 				trend,
 				goal: goal ? parseFloat(goal) : undefined,
 			})
@@ -71,235 +66,180 @@ export default function AddMeasurementScreen() {
 				{ text: 'OK', onPress: () => router.back() },
 			])
 		} catch (error) {
-			console.error('Error saving measurement:', error)
 			Alert.alert('Ошибка', 'Не удалось сохранить замер')
 		}
 	}
 
 	return (
-		<SafeAreaView style={styles.container}>
-			{/* Заголовок */}
-			<View style={styles.header}>
-				<TouchableOpacity
-					style={styles.backButton}
-					onPress={() => router.back()}
-				>
-					<Ionicons name='arrow-back' size={24} color='#FFFFFF' />
+		<SafeAreaView style={s.container}>
+			<View style={s.header}>
+				<TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+					<Ionicons name='arrow-back' size={22} color='#FFF' />
 				</TouchableOpacity>
-				<Text style={styles.headerTitle}>Добавить замер</Text>
-				<View style={styles.placeholder} />
+				<Text style={s.headerTitle}>Добавить замер</Text>
+				<View style={{ width: 30 }} />
 			</View>
 
-			<ScrollView contentContainerStyle={styles.content}>
-				{/* Выбор типа замера */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Тип замера</Text>
-					<ScrollView
-						horizontal
-						showsHorizontalScrollIndicator={false}
-						style={styles.typesScroll}
-					>
-						<View style={styles.typesContainer}>
-							{MEASUREMENT_TYPES.map((type, index) => (
+			<ScrollView
+				contentContainerStyle={s.content}
+				showsVerticalScrollIndicator={false}
+			>
+				{/* Тип замера */}
+				<Text style={s.label}>Тип замера</Text>
+				<ScrollView
+					horizontal
+					showsHorizontalScrollIndicator={false}
+					style={s.hScroll}
+				>
+					<View style={s.hRow}>
+						{MEASUREMENT_TYPES.map((type, i) => {
+							const active = selectedType.name === type.name
+							return (
 								<TouchableOpacity
-									key={index}
-									style={[
-										styles.typeButton,
-										selectedType.name === type.name &&
-											styles.selectedTypeButton,
-									]}
+									key={i}
+									style={[s.typeCard, active && s.typeCardActive]}
 									onPress={() => setSelectedType(type)}
 								>
 									<Ionicons
 										name={type.icon as any}
-										size={24}
-										color={
-											selectedType.name === type.name ? '#FFFFFF' : '#8E8E93'
-										}
+										size={20}
+										color={active ? '#34C759' : '#8E8E93'}
 									/>
-									<Text
-										style={[
-											styles.typeText,
-											selectedType.name === type.name &&
-												styles.selectedTypeText,
-										]}
-									>
+									<Text style={[s.typeName, active && s.typeNameActive]}>
 										{type.name}
 									</Text>
-									<Text style={styles.typeUnit}>{type.unit}</Text>
+									<Text style={s.typeUnit}>{type.unit}</Text>
 								</TouchableOpacity>
-							))}
-						</View>
-					</ScrollView>
-				</View>
-
-				{/* Ввод значения */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Значение</Text>
-					<View style={styles.valueContainer}>
-						<TextInput
-							style={styles.valueInput}
-							value={value}
-							onChangeText={setValue}
-							placeholder='Введите значение'
-							placeholderTextColor='#8E8E93'
-							keyboardType='numeric'
-							autoFocus
-						/>
-						<Text style={styles.unitText}>{selectedType.unit}</Text>
+							)
+						})}
 					</View>
+				</ScrollView>
+
+				{/* Значение */}
+				<Text style={s.label}>Значение</Text>
+				<View style={s.inputRow}>
+					<TextInput
+						style={s.bigInput}
+						value={value}
+						onChangeText={setValue}
+						placeholder='0'
+						placeholderTextColor='#3A3A3C'
+						keyboardType='numeric'
+						autoFocus
+					/>
+					<Text style={s.unitLabel}>{selectedType.unit}</Text>
 				</View>
 
 				{/* Дата */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Дата замера</Text>
+				<Text style={s.label}>Дата</Text>
+				<TextInput
+					style={s.input}
+					value={date}
+					onChangeText={setDate}
+					placeholder='ГГГГ-ММ-ДД'
+					placeholderTextColor='#8E8E93'
+				/>
+
+				{/* Цель */}
+				<Text style={s.label}>
+					Цель <Text style={s.optional}>(опционально)</Text>
+				</Text>
+				<View style={s.inputRow}>
 					<TextInput
-						style={styles.dateInput}
-						value={date}
-						onChangeText={setDate}
-						placeholder='YYYY-MM-DD'
-						placeholderTextColor='#8E8E93'
+						style={s.bigInput}
+						value={goal}
+						onChangeText={setGoal}
+						placeholder='0'
+						placeholderTextColor='#3A3A3C'
+						keyboardType='numeric'
 					/>
-					<Text style={styles.dateHint}>Формат: ГГГГ-ММ-ДД</Text>
+					<Text style={s.unitLabel}>{selectedType.unit}</Text>
 				</View>
 
-				{/* Цель (опционально) */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>Цель (опционально)</Text>
-					<View style={styles.valueContainer}>
-						<TextInput
-							style={styles.valueInput}
-							value={goal}
-							onChangeText={setGoal}
-							placeholder='Целевое значение'
-							placeholderTextColor='#8E8E93'
-							keyboardType='numeric'
-						/>
-						<Text style={styles.unitText}>{selectedType.unit}</Text>
-					</View>
-				</View>
-
-				{/* Кнопка сохранения */}
-				<TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-					<Text style={styles.saveButtonText}>Сохранить замер</Text>
+				<TouchableOpacity style={s.saveBtn} onPress={handleSave}>
+					<Text style={s.saveBtnText}>Сохранить замер</Text>
 				</TouchableOpacity>
 			</ScrollView>
 		</SafeAreaView>
 	)
 }
 
-const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: '#121212',
-	},
+const s = StyleSheet.create({
+	container: { flex: 1, backgroundColor: '#121212' },
 	header: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
-		paddingHorizontal: 10,
-		paddingVertical: 16,
+		paddingHorizontal: 12,
+		paddingVertical: 12,
 		borderBottomWidth: 1,
 		borderBottomColor: '#2C2C2E',
 	},
-	backButton: {
-		padding: 4,
-	},
-	headerTitle: {
-		fontSize: 20,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-	},
-	placeholder: {
-		width: 32,
-	},
-	content: {
-		padding: 20,
-		paddingBottom: 40,
-	},
-	section: {
-		marginBottom: 30,
-	},
-	sectionTitle: {
-		fontSize: 18,
+	backBtn: { padding: 4 },
+	headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
+	content: { padding: 16, paddingBottom: 48 },
+	label: {
+		fontSize: 13,
 		fontWeight: '600',
-		color: '#FFFFFF',
-		marginBottom: 12,
+		color: '#8E8E93',
+		marginBottom: 8,
+		marginTop: 20,
+		textTransform: 'uppercase',
+		letterSpacing: 0.6,
 	},
-	typesScroll: {
-		marginHorizontal: -20,
-	},
-	typesContainer: {
-		flexDirection: 'row',
-		paddingHorizontal: 20,
-		gap: 12,
-	},
-	typeButton: {
-		backgroundColor: '#1E1E1E',
+	optional: { fontWeight: '400', textTransform: 'none', letterSpacing: 0 },
+	hScroll: { marginHorizontal: -16 },
+	hRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8 },
+	typeCard: {
+		alignItems: 'center',
+		backgroundColor: '#1C1C1E',
 		borderRadius: 12,
-		borderWidth: 2,
-		padding: 16,
-		alignItems: 'center',
-		minWidth: 100,
-		borderColor: '#1E1E1E',
+		paddingVertical: 12,
+		paddingHorizontal: 14,
+		gap: 4,
+		borderWidth: 1,
+		borderColor: '#2C2C2E',
+		minWidth: 80,
 	},
-	selectedTypeButton: {
+	typeCardActive: {
 		borderColor: '#34C759',
+		backgroundColor: 'rgba(52,199,89,0.08)',
 	},
-	typeText: {
-		fontSize: 14,
-		color: '#8E8E93',
-		marginTop: 8,
-		marginBottom: 4,
-	},
-	selectedTypeText: {
-		color: '#FFFFFF',
-	},
-	typeUnit: {
-		fontSize: 12,
-		color: '#8E8E93',
-	},
-	valueContainer: {
+	typeName: { fontSize: 13, fontWeight: '500', color: '#8E8E93' },
+	typeNameActive: { color: '#FFF' },
+	typeUnit: { fontSize: 11, color: '#8E8E93' },
+	inputRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		backgroundColor: '#1E1E1E',
+		backgroundColor: '#1C1C1E',
 		borderRadius: 12,
 		paddingHorizontal: 16,
+		borderWidth: 1,
+		borderColor: '#2C2C2E',
 	},
-	valueInput: {
+	bigInput: {
 		flex: 1,
-		paddingVertical: 16,
-		fontSize: 24,
-		color: '#FFFFFF',
+		fontSize: 28,
+		fontWeight: '700',
+		color: '#FFF',
+		paddingVertical: 14,
 	},
-	unitText: {
-		fontSize: 24,
-		color: '#8E8E93',
-		marginLeft: 8,
-	},
-	dateInput: {
-		backgroundColor: '#1E1E1E',
+	unitLabel: { fontSize: 18, color: '#8E8E93', marginLeft: 8 },
+	input: {
+		backgroundColor: '#1C1C1E',
 		borderRadius: 12,
-		padding: 16,
-		fontSize: 16,
-		color: '#FFFFFF',
-		marginBottom: 8,
+		padding: 14,
+		fontSize: 15,
+		color: '#FFF',
+		borderWidth: 1,
+		borderColor: '#2C2C2E',
 	},
-	dateHint: {
-		fontSize: 12,
-		color: '#8E8E93',
-		marginLeft: 4,
-	},
-	saveButton: {
+	saveBtn: {
 		backgroundColor: '#34C759',
 		borderRadius: 12,
-		paddingVertical: 18,
+		paddingVertical: 16,
 		alignItems: 'center',
-		marginTop: 20,
+		marginTop: 32,
 	},
-	saveButtonText: {
-		fontSize: 18,
-		fontWeight: '600',
-		color: '#FFFFFF',
-	},
+	saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
 })

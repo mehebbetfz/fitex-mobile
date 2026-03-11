@@ -1,9 +1,11 @@
 import * as db from '@/scripts/database'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
+	ActivityIndicator,
 	Alert,
+	Animated,
 	FlatList,
 	Modal,
 	StyleSheet,
@@ -28,12 +30,238 @@ interface Measurement {
 interface HistoryEntry {
 	id: string
 	date: string
-	measurements: Array<{
-		name: string
-		value: string
-		change: string
-	}>
+	rawDate: string
+	measurements: Array<{ name: string; value: string; change: string }>
 }
+
+const MEASUREMENT_ICONS: Record<string, string> = {
+	Вес: 'scale',
+	Грудь: 'body',
+	Талия: 'body',
+	Бедра: 'body',
+	Бицепс: 'fitness',
+	Шея: 'body',
+	Икры: 'body',
+	Плечо: 'body',
+	Жир: 'water',
+	Мышцы: 'fitness',
+}
+
+// Количество записей истории для загрузки за раз
+const PAGE_SIZE = 5
+
+const formatDate = (dateString: string): string => {
+	const date = new Date(dateString)
+	return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`
+}
+
+const getTrendColor = (trend: string) =>
+	trend === 'up' ? '#34C759' : trend === 'down' ? '#FF3B30' : '#8E8E93'
+
+const getTrendIcon = (trend: string) =>
+	trend === 'up' ? 'trending-up' : trend === 'down' ? 'trending-down' : 'remove'
+
+// ── Shimmer animation hook ──
+const useShimmer = () => {
+	const anim = useRef(new Animated.Value(0)).current
+	useEffect(() => {
+		const loop = Animated.loop(
+			Animated.sequence([
+				Animated.timing(anim, {
+					toValue: 1,
+					duration: 750,
+					useNativeDriver: true,
+				}),
+				Animated.timing(anim, {
+					toValue: 0,
+					duration: 750,
+					useNativeDriver: true,
+				}),
+			]),
+		)
+		loop.start()
+		return () => loop.stop()
+	}, [])
+	return anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] })
+}
+
+const ShimmerBlock = ({ style }: { style: any }) => {
+	const opacity = useShimmer()
+	return <Animated.View style={[style, { opacity }]} />
+}
+
+// ── Скелетон карточки замера (текущие) ──
+const MeasurementCardSkeleton = () => (
+	<View style={styles.measurementItem}>
+		<ShimmerBlock
+			style={[styles.measurementIconWrap, { backgroundColor: '#2C2C2E' }]}
+		/>
+		<View style={styles.measurementBody}>
+			<ShimmerBlock
+				style={[
+					styles.measurementName,
+					{ width: '60%', height: 14, backgroundColor: '#2C2C2E' },
+				]}
+			/>
+			<ShimmerBlock
+				style={[
+					styles.measurementDate,
+					{
+						width: '40%',
+						height: 11,
+						marginTop: 4,
+						backgroundColor: '#2C2C2E',
+					},
+				]}
+			/>
+		</View>
+		<View style={styles.measurementRight}>
+			<ShimmerBlock
+				style={[
+					styles.measurementValue,
+					{ width: 50, height: 15, backgroundColor: '#2C2C2E' },
+				]}
+			/>
+			<ShimmerBlock
+				style={{
+					width: 40,
+					height: 11,
+					marginTop: 3,
+					backgroundColor: '#2C2C2E',
+					borderRadius: 4,
+				}}
+			/>
+		</View>
+	</View>
+)
+
+// ── Скелетон записи истории ──
+const HistoryItemSkeleton = () => (
+	<View style={styles.historyItem}>
+		<View style={styles.historyDateRow}>
+			<ShimmerBlock
+				style={{
+					width: 80,
+					height: 14,
+					backgroundColor: '#2C2C2E',
+					borderRadius: 4,
+				}}
+			/>
+		</View>
+		{[1, 2, 3].map(i => (
+			<View key={i} style={styles.historyRow}>
+				<ShimmerBlock
+					style={{
+						flex: 2,
+						height: 13,
+						backgroundColor: '#2C2C2E',
+						borderRadius: 4,
+						marginRight: 8,
+					}}
+				/>
+				<ShimmerBlock
+					style={{
+						flex: 1,
+						height: 13,
+						backgroundColor: '#2C2C2E',
+						borderRadius: 4,
+						marginRight: 8,
+					}}
+				/>
+				<ShimmerBlock
+					style={{
+						flex: 1,
+						height: 13,
+						backgroundColor: '#2C2C2E',
+						borderRadius: 4,
+					}}
+				/>
+			</View>
+		))}
+	</View>
+)
+
+// ── Скелетон статистики ──
+const StatsSkeleton = () => (
+	<View style={styles.statsRow}>
+		{[1, 2, 3].map(i => (
+			<ShimmerBlock
+				key={i}
+				style={[styles.statCard, { height: 70, backgroundColor: '#2C2C2E' }]}
+			/>
+		))}
+	</View>
+)
+
+// ── Скелетон табов ──
+const TabsSkeleton = () => (
+	<View style={styles.tabs}>
+		{[1, 2].map(i => (
+			<ShimmerBlock
+				key={i}
+				style={{
+					flex: 1,
+					height: 36,
+					backgroundColor: '#2C2C2E',
+					borderRadius: 8,
+				}}
+			/>
+		))}
+	</View>
+)
+
+// ── Скелетон для подгрузки ──
+const LoadingFooter = () => (
+	<View style={styles.loadingFooter}>
+		<ActivityIndicator size='small' color='#34C759' />
+		<Text style={styles.loadingFooterText}>Загрузка истории...</Text>
+	</View>
+)
+
+// ── Полный скелетон для первой загрузки ──
+const InitialLoadingSkeleton = () => (
+	<SafeAreaView style={styles.container}>
+		<View style={styles.header}>
+			<ShimmerBlock
+				style={[
+					styles.backButton,
+					{
+						width: 30,
+						height: 30,
+						borderRadius: 15,
+						backgroundColor: '#2C2C2E',
+					},
+				]}
+			/>
+			<ShimmerBlock
+				style={[
+					styles.headerTitle,
+					{ width: 150, height: 18, backgroundColor: '#2C2C2E' },
+				]}
+			/>
+			<ShimmerBlock
+				style={[
+					styles.addButton,
+					{
+						width: 30,
+						height: 30,
+						borderRadius: 15,
+						backgroundColor: '#2C2C2E',
+					},
+				]}
+			/>
+		</View>
+
+		<StatsSkeleton />
+		<TabsSkeleton />
+
+		<View style={styles.listContent}>
+			{[1, 2, 3, 4].map(i => (
+				<MeasurementCardSkeleton key={i} />
+			))}
+		</View>
+	</SafeAreaView>
+)
 
 export default function MeasurementsHistoryScreen() {
 	const router = useRouter()
@@ -43,128 +271,162 @@ export default function MeasurementsHistoryScreen() {
 	const [selectedMeasurement, setSelectedMeasurement] =
 		useState<Measurement | null>(null)
 	const [modalVisible, setModalVisible] = useState(false)
-
 	const [currentMeasurements, setCurrentMeasurements] = useState<Measurement[]>(
 		[],
 	)
-	const [historyData, setHistoryData] = useState<HistoryEntry[]>([])
+	const [allHistoryData, setAllHistoryData] = useState<HistoryEntry[]>([])
 	const [loading, setLoading] = useState(true)
 
-	useEffect(() => {
-		loadData()
-	}, [])
+	// Состояния для пагинации
+	const [displayedHistory, setDisplayedHistory] = useState<HistoryEntry[]>([])
+	const [currentPage, setCurrentPage] = useState(1)
+	const [hasMore, setHasMore] = useState(true)
+	const [isLoadingMore, setIsLoadingMore] = useState(false)
+	const [isInitialLoading, setIsInitialLoading] = useState(true)
 
 	const loadData = async () => {
 		try {
 			setLoading(true)
-
-			// Загружаем текущие замеры
-			const latestMeasurements = await db.getLatestBodyMeasurements()
-			const formattedCurrentMeasurements: Measurement[] =
-				latestMeasurements.map((m, index) => {
-					// Находим предыдущее значение для расчета изменения
-					const previousValue = 0 // В реальном приложении нужно получать предыдущее значение
-					const change = m.value - previousValue
-
-					return {
-						id: m.id?.toString() || index.toString(),
-						name: m.name,
-						value: m.value,
-						unit: m.unit,
-						trend: m.trend,
-						date: m.date,
-						change,
-						goal: m.goal,
-						progress: m.goal ? (m.value / m.goal) * 100 : undefined,
-					}
-				})
-			setCurrentMeasurements(formattedCurrentMeasurements)
-
-			// Загружаем историю замеров
 			const allMeasurements = await db.getBodyMeasurements()
 
-			// Группируем измерения по дате
-			const groupedByDate: Record<
-				string,
-				Array<{ name: string; value: number; unit: string }>
-			> = {}
+			// ── Текущие: последнее значение каждого типа + реальный change ──
+			const latestByName = new Map<string, any>()
+			const prevByName = new Map<string, any>()
 
-			allMeasurements.forEach(m => {
-				if (!groupedByDate[m.date]) {
-					groupedByDate[m.date] = []
+			// Сортируем по дате desc
+			const sorted = [...allMeasurements].sort(
+				(a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+			)
+
+			sorted.forEach(m => {
+				if (!latestByName.has(m.name)) {
+					latestByName.set(m.name, m)
+				} else if (!prevByName.has(m.name)) {
+					prevByName.set(m.name, m)
 				}
-				groupedByDate[m.date].push({
+			})
+
+			const formattedCurrent: Measurement[] = Array.from(
+				latestByName.values(),
+			).map((m, index) => {
+				const prev = prevByName.get(m.name)
+				const change = prev ? m.value - prev.value : 0
+				return {
+					id: m.id?.toString() || index.toString(),
 					name: m.name,
 					value: m.value,
 					unit: m.unit,
-				})
+					trend: m.trend ?? 'stable',
+					date: m.date,
+					change,
+					goal: m.goal,
+					progress: m.goal ? (m.value / m.goal) * 100 : undefined,
+				}
+			})
+			setCurrentMeasurements(formattedCurrent)
+
+			// ── История: группируем по дате ──
+			const groupedByDate = new Map<string, any[]>()
+			allMeasurements.forEach(m => {
+				if (!groupedByDate.has(m.date)) groupedByDate.set(m.date, [])
+				groupedByDate.get(m.date)!.push(m)
 			})
 
-			// Форматируем для отображения
-			const formattedHistory: HistoryEntry[] = Object.entries(groupedByDate)
-				.sort(
-					([dateA], [dateB]) =>
-						new Date(dateB).getTime() - new Date(dateA).getTime(),
-				)
-				.map(([date, measurements], index) => {
-					// Находим предыдущие измерения для расчета изменений
-					const previousDate = Object.keys(groupedByDate)[index + 1]
-					const previousMeasurements = previousDate
-						? groupedByDate[previousDate]
-						: []
+			const datesSorted = Array.from(groupedByDate.keys()).sort(
+				(a, b) => new Date(b).getTime() - new Date(a).getTime(),
+			)
 
-					const formattedMeasurements = measurements.map(m => {
-						const previous = previousMeasurements.find(pm => pm.name === m.name)
-						const change = previous ? m.value - previous.value : 0
+			const formattedHistory: HistoryEntry[] = datesSorted.map((date, i) => {
+				const entries = groupedByDate.get(date)!
+				const prevDate = datesSorted[i + 1]
+				const prevEntries = prevDate ? groupedByDate.get(prevDate)! : []
 
+				return {
+					id: i.toString(),
+					date: formatDate(date),
+					rawDate: date,
+					measurements: entries.map(m => {
+						const prev = prevEntries.find(p => p.name === m.name)
+						const change = prev ? m.value - prev.value : 0
 						return {
 							name: m.name,
 							value: `${m.value} ${m.unit}`,
 							change: `${change > 0 ? '+' : ''}${change.toFixed(1)} ${m.unit}`,
 						}
-					})
-
-					return {
-						id: index.toString(),
-						date: formatDate(date),
-						measurements: formattedMeasurements,
-					}
-				})
-
-			setHistoryData(formattedHistory)
+					}),
+				}
+			})
+			setAllHistoryData(formattedHistory)
 		} catch (error) {
 			console.error('Error loading measurements:', error)
 		} finally {
 			setLoading(false)
+			setIsInitialLoading(false)
 		}
 	}
 
-	const formatDate = (dateString: string): string => {
-		const date = new Date(dateString)
-		const day = date.getDate().toString().padStart(2, '0')
-		const month = (date.getMonth() + 1).toString().padStart(2, '0')
-		const year = date.getFullYear()
-		return `${day}.${month}.${year}`
+	useFocusEffect(
+		useCallback(() => {
+			loadData()
+		}, []),
+	)
+
+	// Обновление отображаемой истории при изменении всех данных
+	useEffect(() => {
+		setCurrentPage(1)
+		setDisplayedHistory(allHistoryData.slice(0, PAGE_SIZE))
+		setHasMore(allHistoryData.length > PAGE_SIZE)
+	}, [allHistoryData])
+
+	// Загрузка следующей порции истории
+	const loadNextPage = useCallback(() => {
+		if (isLoadingMore || !hasMore || loading || selectedTab !== 'history')
+			return
+
+		setIsLoadingMore(true)
+
+		// Небольшая задержка для плавности
+		setTimeout(() => {
+			const nextPage = currentPage + 1
+			const endIndex = nextPage * PAGE_SIZE
+			const newHistory = allHistoryData.slice(0, endIndex)
+
+			setDisplayedHistory(newHistory)
+			setCurrentPage(nextPage)
+			setHasMore(allHistoryData.length > endIndex)
+			setIsLoadingMore(false)
+		}, 500)
+	}, [
+		currentPage,
+		allHistoryData,
+		hasMore,
+		isLoadingMore,
+		loading,
+		selectedTab,
+	])
+
+	const handleDeleteMeasurement = async (id: string) => {
+		Alert.alert('Удалить?', 'Действие нельзя отменить', [
+			{ text: 'Отмена', style: 'cancel' },
+			{
+				text: 'Удалить',
+				style: 'destructive',
+				onPress: async () => {
+					await db.deleteBodyMeasurement(Number(id))
+					setModalVisible(false)
+					loadData()
+				},
+			},
+		])
 	}
 
-	const getTrendIcon = (trend: string) => {
-		switch (trend) {
-			case 'up':
-				return { name: 'arrow-up', color: '#34C759' }
-			case 'down':
-				return { name: 'arrow-down', color: '#FF3B30' }
-			default:
-				return { name: 'remove', color: '#8E8E93' }
-		}
+	const renderFooter = () => {
+		if (!hasMore || selectedTab !== 'history') return null
+		if (isLoadingMore) return <LoadingFooter />
+		return null
 	}
 
-	const getProgressColor = (progress?: number) => {
-		if (!progress) return '#8E8E93'
-		if (progress >= 80) return '#34C759'
-		if (progress >= 50) return '#FF9500'
-		return '#FF3B30'
-	}
-
+	// ── Карточка текущего замера ──
 	const renderMeasurementItem = ({ item }: { item: Measurement }) => (
 		<TouchableOpacity
 			style={styles.measurementItem}
@@ -172,276 +434,199 @@ export default function MeasurementsHistoryScreen() {
 				setSelectedMeasurement(item)
 				setModalVisible(true)
 			}}
+			activeOpacity={0.7}
 		>
-			<View style={styles.measurementHeader}>
-				<Text style={styles.measurementName}>{item.name}</Text>
-				<View style={styles.trendBadge}>
-					<Ionicons
-						name={getTrendIcon(item.trend).name as any}
-						size={16}
-						color={getTrendIcon(item.trend).color}
-					/>
-					<Text
-						style={[
-							styles.changeText,
-							{ color: getTrendIcon(item.trend).color },
-						]}
-					>
-						{item.change && item.change > 0 ? '+' : ''}
-						{item.change?.toFixed(1)} {item.unit}
-					</Text>
-				</View>
+			<View style={styles.measurementIconWrap}>
+				<Ionicons
+					name={(MEASUREMENT_ICONS[item.name] ?? 'body') as any}
+					size={16}
+					color='#34C759'
+				/>
 			</View>
-
-			<View style={styles.valuesContainer}>
-				<View style={styles.valueColumn}>
-					<Text style={styles.valueLabel}>Текущий</Text>
-					<Text style={styles.currentValue}>
-						{item.value} {item.unit}
-					</Text>
-				</View>
-				{item.goal && (
-					<View style={styles.valueColumn}>
-						<Text style={styles.valueLabel}>Цель</Text>
-						<Text style={styles.goalValue}>
-							{item.goal} {item.unit}
+			<View style={styles.measurementBody}>
+				<Text style={styles.measurementName}>{item.name}</Text>
+				<Text style={styles.measurementDate}>{formatDate(item.date)}</Text>
+			</View>
+			<View style={styles.measurementRight}>
+				<Text style={styles.measurementValue}>
+					{item.value}
+					<Text style={styles.measurementUnit}> {item.unit}</Text>
+				</Text>
+				{item.change !== 0 && (
+					<View style={styles.changeBadge}>
+						<Ionicons
+							name={getTrendIcon(item.trend) as any}
+							size={11}
+							color={getTrendColor(item.trend)}
+						/>
+						<Text
+							style={[styles.changeText, { color: getTrendColor(item.trend) }]}
+						>
+							{item.change && item.change > 0 ? '+' : ''}
+							{item.change?.toFixed(1)}
 						</Text>
 					</View>
 				)}
 			</View>
-
-			{item.goal && item.progress && (
-				<View style={styles.goalContainer}>
-					<View style={styles.goalInfo}>
-						<Text style={styles.goalLabel}>
-							Прогресс: {item.progress.toFixed(1)}%
-						</Text>
-					</View>
-					<View style={styles.progressBar}>
-						<View
-							style={[
-								styles.progressFill,
-								{
-									width: `${Math.min(item.progress, 100)}%`,
-									backgroundColor: getProgressColor(item.progress),
-								},
-							]}
-						/>
-					</View>
-				</View>
-			)}
-
-			<Text style={styles.dateText}>Измерено: {formatDate(item.date)}</Text>
 		</TouchableOpacity>
 	)
 
+	// ── Запись истории ──
 	const renderHistoryItem = ({ item }: { item: HistoryEntry }) => (
 		<View style={styles.historyItem}>
-			<View style={styles.historyHeader}>
-				<View style={styles.historyDateContainer}>
-					<Ionicons name='calendar' size={18} color='#34C759' />
-					<Text style={styles.historyDate}>{item.date}</Text>
-				</View>
+			<View style={styles.historyDateRow}>
+				<Ionicons name='calendar-outline' size={14} color='#34C759' />
+				<Text style={styles.historyDate}>{item.date}</Text>
 			</View>
-
-			{item.measurements.map((measurement, index) => (
-				<View key={index} style={styles.historyMeasurement}>
-					<Text style={styles.historyName}>{measurement.name}</Text>
-					<Text style={styles.historyValue}>{measurement.value}</Text>
+			{item.measurements.map((m, i) => (
+				<View
+					key={i}
+					style={[
+						styles.historyRow,
+						i === item.measurements.length - 1 && { borderBottomWidth: 0 },
+					]}
+				>
+					<Text style={styles.historyName}>{m.name}</Text>
+					<Text style={styles.historyValue}>{m.value}</Text>
 					<Text
 						style={[
 							styles.historyChange,
 							{
-								color: measurement.change.includes('+')
+								color: m.change.includes('+')
 									? '#34C759'
-									: measurement.change.includes('-')
+									: m.change.replace(/[^0-9.-]/g, '') !== '0.0'
 										? '#FF3B30'
 										: '#8E8E93',
 							},
 						]}
 					>
-						{measurement.change}
+						{m.change}
 					</Text>
 				</View>
 			))}
 		</View>
 	)
 
-	useFocusEffect(
-		useCallback(() => {
-			// Очистка при размонтировании (опционально)
-			loadData()
-			return () => {
-				// Здесь можно выполнить очистку, если нужно
-			}
-		}, []),
-	)
+	const weightMeasurement = currentMeasurements.find(m => m.name === 'Вес')
 
-	const handleAddMeasurement = () => {
-		router.push('/(routes)/add-measurement')
-	}
-
-	const handleEditMeasurement = (id: string) => {
-		router.push(`/(routes)/edit-measurement/${id}`)
-	}
-
-	const handleDeleteMeasurement = async (id: string) => {
-		if (!(await confirmDelete())) return
-
-		try {
-			await db.deleteBodyMeasurement(Number(id))
-			await loadData()
-		} catch (err) {
-			console.error(err)
-		}
-	}
-
-	// Вспомогательная функция подтверждения (можно вынести)
-	const confirmDelete = async (): Promise<boolean> => {
-		return new Promise(resolve => {
-			Alert.alert(
-				'Удалить?',
-				'Действие нельзя отменить',
-				[
-					{ text: 'Отмена', onPress: () => resolve(false) },
-					{
-						text: 'Удалить',
-						style: 'destructive',
-						onPress: () => resolve(true),
-					},
-				],
-				{ cancelable: true },
-			)
-		})
+	// Показываем полный скелетон при первой загрузке
+	if (isInitialLoading) {
+		return <InitialLoadingSkeleton />
 	}
 
 	return (
 		<SafeAreaView style={styles.container}>
-			{/* Заголовок */}
+			{/* Header */}
 			<View style={styles.header}>
 				<TouchableOpacity
-					style={styles.backButton}
 					onPress={() => router.back()}
+					style={styles.backButton}
 				>
-					<Ionicons name='arrow-back' size={24} color='#FFFFFF' />
+					<Ionicons name='arrow-back' size={22} color='#FFFFFF' />
 				</TouchableOpacity>
 				<Text style={styles.headerTitle}>История замеров</Text>
 				<TouchableOpacity
+					onPress={() => router.push('/(routes)/add-measurement')}
 					style={styles.addButton}
-					onPress={handleAddMeasurement}
 				>
-					<Ionicons name='add' size={24} color='#34C759' />
+					<Ionicons name='add' size={22} color='#34C759' />
 				</TouchableOpacity>
 			</View>
 
-			{/* Табы */}
-			<View style={styles.tabsContainer}>
-				<TouchableOpacity
-					style={[styles.tab, selectedTab === 'current' && styles.activeTab]}
-					onPress={() => setSelectedTab('current')}
-				>
-					<Text
-						style={[
-							styles.tabText,
-							selectedTab === 'current' && styles.activeTabText,
-						]}
-					>
-						Текущие замеры
-					</Text>
-				</TouchableOpacity>
-				<TouchableOpacity
-					style={[styles.tab, selectedTab === 'history' && styles.activeTab]}
-					onPress={() => setSelectedTab('history')}
-				>
-					<Text
-						style={[
-							styles.tabText,
-							selectedTab === 'history' && styles.activeTabText,
-						]}
-					>
-						История
-					</Text>
-				</TouchableOpacity>
-			</View>
-
-			{/* Статистика */}
-			<View style={styles.statsContainer}>
+			{/* Quick stats */}
+			<View style={styles.statsRow}>
 				<View style={styles.statCard}>
-					<View style={styles.statIconContainer}>
-						<Ionicons name='trending-down' size={20} color='#34C759' />
-					</View>
 					<Text style={styles.statValue}>
-						{currentMeasurements.length > 0
-							? `${currentMeasurements.find(m => m.name.includes('Вес'))?.change?.toFixed(1) || '0'} кг`
-							: '0 кг'}
+						{weightMeasurement
+							? `${weightMeasurement.change && weightMeasurement.change > 0 ? '+' : ''}${weightMeasurement.change?.toFixed(1) ?? '0'} кг`
+							: '— кг'}
 					</Text>
-					<Text style={styles.statLabel}>Изменение веса</Text>
+					<Text style={styles.statLabel}>Изм. веса</Text>
 				</View>
 				<View style={styles.statCard}>
-					<View style={styles.statIconContainer}>
-						<Ionicons name='body' size={20} color='#FF9500' />
-					</View>
 					<Text style={styles.statValue}>{currentMeasurements.length}</Text>
 					<Text style={styles.statLabel}>Параметров</Text>
 				</View>
 				<View style={styles.statCard}>
-					<View style={styles.statIconContainer}>
-						<Ionicons name='calendar' size={20} color='#5856D6' />
-					</View>
 					<Text style={styles.statValue}>
 						{currentMeasurements.length > 0
 							? Math.floor(
-									(new Date().getTime() -
+									(Date.now() -
 										new Date(currentMeasurements[0].date).getTime()) /
-										(1000 * 60 * 60 * 24),
+										86400000,
 								)
-							: '0'}
+							: '—'}
 					</Text>
 					<Text style={styles.statLabel}>Дней назад</Text>
 				</View>
 			</View>
 
-			{/* Контент в зависимости от выбранного таба */}
+			{/* Tabs */}
+			<View style={styles.tabs}>
+				{(['current', 'history'] as const).map(tab => (
+					<TouchableOpacity
+						key={tab}
+						style={[styles.tab, selectedTab === tab && styles.activeTab]}
+						onPress={() => setSelectedTab(tab)}
+					>
+						<Text
+							style={[
+								styles.tabText,
+								selectedTab === tab && styles.activeTabText,
+							]}
+						>
+							{tab === 'current' ? 'Текущие' : 'История'}
+						</Text>
+					</TouchableOpacity>
+				))}
+			</View>
+
+			{/* List */}
 			{selectedTab === 'current' ? (
-				<FlatList
-					data={currentMeasurements}
-					renderItem={renderMeasurementItem}
-					keyExtractor={item => item.id}
-					contentContainerStyle={styles.listContainer}
-					showsVerticalScrollIndicator={false}
-					ListEmptyComponent={
-						<View style={styles.emptyContainer}>
-							<Ionicons name='body' size={64} color='#2C2C2E' />
-							<Text style={styles.emptyText}>Нет замеров</Text>
-							<Text style={styles.emptySubtext}>
-								Добавьте свой первый замер
-							</Text>
-						</View>
-					}
-				/>
+				loading ? (
+					<View style={styles.listContent}>
+						{[1, 2, 3, 4].map(i => (
+							<MeasurementCardSkeleton key={i} />
+						))}
+					</View>
+				) : (
+					<FlatList
+						data={currentMeasurements}
+						renderItem={renderMeasurementItem}
+						keyExtractor={item => item.id}
+						contentContainerStyle={styles.listContent}
+						showsVerticalScrollIndicator={false}
+						ListEmptyComponent={
+							<View style={styles.emptyWrap}>
+								<Ionicons name='body-outline' size={48} color='#3A3A3C' />
+								<Text style={styles.emptyText}>Нет замеров</Text>
+							</View>
+						}
+					/>
+				)
 			) : (
 				<FlatList
-					data={historyData}
+					data={displayedHistory}
 					renderItem={renderHistoryItem}
 					keyExtractor={item => item.id}
-					contentContainerStyle={styles.historyListContainer}
+					contentContainerStyle={styles.listContent}
 					showsVerticalScrollIndicator={false}
+					onEndReached={loadNextPage}
+					onEndReachedThreshold={0.3}
+					ListFooterComponent={renderFooter}
 					ListEmptyComponent={
-						<View style={styles.emptyContainer}>
-							<Ionicons name='calendar' size={64} color='#2C2C2E' />
+						<View style={styles.emptyWrap}>
+							<Ionicons name='calendar-outline' size={48} color='#3A3A3C' />
 							<Text style={styles.emptyText}>Нет истории</Text>
-							<Text style={styles.emptySubtext}>
-								Добавьте замеры для просмотра истории
-							</Text>
 						</View>
 					}
 				/>
 			)}
 
-			{/* Модальное окно с деталями */}
+			{/* Detail modal */}
 			<Modal
 				animationType='slide'
-				transparent={true}
+				transparent
 				visible={modalVisible}
 				onRequestClose={() => setModalVisible(false)}
 			>
@@ -450,126 +635,127 @@ export default function MeasurementsHistoryScreen() {
 						{selectedMeasurement && (
 							<>
 								<View style={styles.modalHeader}>
+									<View style={styles.modalIconWrap}>
+										<Ionicons
+											name={
+												(MEASUREMENT_ICONS[selectedMeasurement.name] ??
+													'body') as any
+											}
+											size={18}
+											color='#34C759'
+										/>
+									</View>
 									<Text style={styles.modalTitle}>
 										{selectedMeasurement.name}
 									</Text>
-									<TouchableOpacity
-										onPress={() => setModalVisible(false)}
-										style={styles.closeButton}
-									>
-										<Ionicons name='close' size={24} color='#8E8E93' />
+									<TouchableOpacity onPress={() => setModalVisible(false)}>
+										<Ionicons name='close' size={22} color='#8E8E93' />
 									</TouchableOpacity>
 								</View>
 
-								<View style={styles.modalBody}>
-									<View style={styles.modalStatsGrid}>
-										<View style={styles.modalStat}>
-											<Text style={styles.modalStatLabel}>Текущий</Text>
-											<Text style={styles.modalStatValue}>
-												{selectedMeasurement.value} {selectedMeasurement.unit}
+								<View style={styles.modalStatsRow}>
+									<View style={styles.modalStat}>
+										<Text style={styles.modalStatLabel}>Значение</Text>
+										<Text style={styles.modalStatValue}>
+											{selectedMeasurement.value} {selectedMeasurement.unit}
+										</Text>
+									</View>
+									<View style={styles.modalStat}>
+										<Text style={styles.modalStatLabel}>Дата</Text>
+										<Text style={styles.modalStatValue}>
+											{formatDate(selectedMeasurement.date)}
+										</Text>
+									</View>
+									<View style={styles.modalStat}>
+										<Text style={styles.modalStatLabel}>Изменение</Text>
+										<View style={styles.modalChangeRow}>
+											<Ionicons
+												name={getTrendIcon(selectedMeasurement.trend) as any}
+												size={14}
+												color={getTrendColor(selectedMeasurement.trend)}
+											/>
+											<Text
+												style={[
+													styles.modalStatValue,
+													{ color: getTrendColor(selectedMeasurement.trend) },
+												]}
+											>
+												{selectedMeasurement.change &&
+												selectedMeasurement.change > 0
+													? '+'
+													: ''}
+												{selectedMeasurement.change?.toFixed(1)}{' '}
+												{selectedMeasurement.unit}
 											</Text>
 										</View>
-										<View style={styles.modalStat}>
-											<Text style={styles.modalStatLabel}>Дата</Text>
-											<Text style={styles.modalStatValue}>
-												{formatDate(selectedMeasurement.date)}
-											</Text>
-										</View>
-										<View style={styles.modalStat}>
-											<Text style={styles.modalStatLabel}>Изменение</Text>
-											<View style={styles.changeContainer}>
-												<Ionicons
-													name={
-														getTrendIcon(selectedMeasurement.trend).name as any
-													}
-													size={16}
-													color={getTrendIcon(selectedMeasurement.trend).color}
-												/>
+									</View>
+								</View>
+
+								{selectedMeasurement.goal &&
+									selectedMeasurement.progress !== undefined && (
+										<View style={styles.goalSection}>
+											<View style={styles.goalHeader}>
+												<Text style={styles.goalLabel}>
+													Цель: {selectedMeasurement.goal}{' '}
+													{selectedMeasurement.unit}
+												</Text>
 												<Text
 													style={[
-														styles.changeText,
+														styles.goalPercent,
 														{
-															color: getTrendIcon(selectedMeasurement.trend)
-																.color,
+															color:
+																selectedMeasurement.progress >= 80
+																	? '#34C759'
+																	: selectedMeasurement.progress >= 50
+																		? '#FF9500'
+																		: '#FF3B30',
 														},
 													]}
 												>
-													{selectedMeasurement.change &&
-													selectedMeasurement.change > 0
-														? '+'
-														: ''}
-													{selectedMeasurement.change?.toFixed(1)}{' '}
-													{selectedMeasurement.unit}
+													{selectedMeasurement.progress.toFixed(1)}%
 												</Text>
 											</View>
-										</View>
-									</View>
-
-									{selectedMeasurement.goal && (
-										<View style={styles.goalSection}>
-											<Text style={styles.sectionTitle}>Прогресс цели</Text>
-											<View style={styles.goalProgress}>
-												<View style={styles.goalHeader}>
-													<Text style={styles.goalText}>
-														Цель: {selectedMeasurement.goal}{' '}
-														{selectedMeasurement.unit}
-													</Text>
-													{selectedMeasurement.progress && (
-														<Text
-															style={[
-																styles.progressPercent,
-																{
-																	color: getProgressColor(
-																		selectedMeasurement.progress,
-																	),
-																},
-															]}
-														>
-															{selectedMeasurement.progress.toFixed(1)}%
-														</Text>
-													)}
-												</View>
-												{selectedMeasurement.progress && (
-													<View style={styles.progressBar}>
-														<View
-															style={[
-																styles.progressFill,
-																{
-																	width: `${Math.min(selectedMeasurement.progress, 100)}%`,
-																	backgroundColor: getProgressColor(
-																		selectedMeasurement.progress,
-																	),
-																},
-															]}
-														/>
-													</View>
-												)}
+											<View style={styles.progressBar}>
+												<View
+													style={[
+														styles.progressFill,
+														{
+															width: `${Math.min(selectedMeasurement.progress, 100)}%`,
+															backgroundColor:
+																selectedMeasurement.progress >= 80
+																	? '#34C759'
+																	: selectedMeasurement.progress >= 50
+																		? '#FF9500'
+																		: '#FF3B30',
+														},
+													]}
+												/>
 											</View>
 										</View>
 									)}
 
-									<View style={styles.modalActions}>
-										<TouchableOpacity
-											style={styles.editButton}
-											onPress={() => {
-												;(setModalVisible(false),
-													handleEditMeasurement(selectedMeasurement.id))
-											}}
-										>
-											<Ionicons name='create' size={20} color='#FFFFFF' />
-											<Text style={styles.editButtonText}>Редактировать</Text>
-										</TouchableOpacity>
-										<TouchableOpacity
-											style={styles.deleteButton}
-											onPress={() => {
-												;(handleDeleteMeasurement(selectedMeasurement.id),
-													setModalVisible(false))
-											}}
-										>
-											<Ionicons name='trash' size={20} color='#FF3B30' />
-											<Text style={styles.deleteButtonText}>Удалить</Text>
-										</TouchableOpacity>
-									</View>
+								<View style={styles.modalActions}>
+									<TouchableOpacity
+										style={styles.editBtn}
+										onPress={() => {
+											setModalVisible(false)
+											router.push(
+												`/(routes)/edit-measurement/${selectedMeasurement.id}`,
+											)
+										}}
+									>
+										<Ionicons name='create-outline' size={18} color='#FFFFFF' />
+										<Text style={styles.editBtnText}>Изменить</Text>
+									</TouchableOpacity>
+									<TouchableOpacity
+										style={styles.deleteBtn}
+										onPress={() =>
+											handleDeleteMeasurement(selectedMeasurement.id)
+										}
+									>
+										<Ionicons name='trash-outline' size={18} color='#FF3B30' />
+										<Text style={styles.deleteBtnText}>Удалить</Text>
+									</TouchableOpacity>
 								</View>
 							</>
 						)}
@@ -577,384 +763,275 @@ export default function MeasurementsHistoryScreen() {
 				</View>
 			</Modal>
 
-			{/* Кнопка добавления */}
-			<TouchableOpacity style={styles.fab} onPress={handleAddMeasurement}>
+			{/* FAB */}
+			<TouchableOpacity
+				style={styles.fab}
+				onPress={() => router.push('/(routes)/add-measurement')}
+			>
 				<Ionicons name='add' size={24} color='#FFFFFF' />
 			</TouchableOpacity>
 		</SafeAreaView>
 	)
 }
 
+// Обновляем стили, добавляем новые
 const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: '#121212',
-	},
+	container: { flex: 1, backgroundColor: '#121212' },
+
+	// Header
 	header: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
-		paddingHorizontal: 10,
-		paddingVertical: 16,
-		borderBottomWidth: 1,
-		borderBottomColor: '#2C2C2E',
-	},
-	backButton: {
-		padding: 4,
-	},
-	headerTitle: {
-		fontSize: 20,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-	},
-	addButton: {
-		padding: 4,
-	},
-	tabsContainer: {
-		flexDirection: 'row',
-		paddingHorizontal: 10,
+		paddingHorizontal: 12,
 		paddingVertical: 12,
 		borderBottomWidth: 1,
 		borderBottomColor: '#2C2C2E',
 	},
-	tab: {
-		flex: 1,
-		paddingVertical: 12,
-		alignItems: 'center',
-	},
-	activeTab: {
-		borderBottomWidth: 2,
-		borderBottomColor: '#34C759',
-	},
-	tabText: {
-		fontSize: 16,
-		color: '#8E8E93',
-		fontWeight: '500',
-	},
-	activeTabText: {
-		color: '#FFFFFF',
-	},
-	statsContainer: {
+	backButton: { padding: 4 },
+	addButton: { padding: 4 },
+	headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
+
+	// Stats
+	statsRow: {
 		flexDirection: 'row',
-		paddingHorizontal: 10,
-		paddingVertical: 16,
-		gap: 12,
+		paddingHorizontal: 12,
+		paddingVertical: 12,
+		gap: 8,
 	},
 	statCard: {
 		flex: 1,
-		backgroundColor: '#1E1E1E',
+		backgroundColor: '#1C1C1E',
 		borderRadius: 12,
-		padding: 16,
+		paddingVertical: 12,
 		alignItems: 'center',
-	},
-	statIconContainer: {
-		width: 40,
-		height: 40,
-		borderRadius: 20,
-		backgroundColor: '#2C2C2E',
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginBottom: 8,
+		borderWidth: 1,
+		borderColor: '#2C2C2E',
 	},
 	statValue: {
-		fontSize: 18,
-		fontWeight: 'bold',
+		fontSize: 16,
+		fontWeight: '700',
 		color: '#FFFFFF',
-		marginBottom: 4,
+		marginBottom: 2,
 	},
-	statLabel: {
-		fontSize: 12,
-		color: '#8E8E93',
+	statLabel: { fontSize: 11, color: '#8E8E93' },
+
+	// Tabs
+	tabs: {
+		flexDirection: 'row',
+		marginHorizontal: 12,
+		backgroundColor: '#1C1C1E',
+		borderRadius: 10,
+		padding: 3,
+		marginBottom: 10,
 	},
-	listContainer: {
-		paddingHorizontal: 10,
-		paddingTop: 8,
-		paddingBottom: 100,
-	},
+	tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
+	activeTab: { backgroundColor: '#2C2C2E' },
+	tabText: { fontSize: 14, fontWeight: '500', color: '#8E8E93' },
+	activeTabText: { color: '#FFFFFF' },
+
+	// List
+	listContent: { paddingHorizontal: 12, paddingBottom: 100 },
+
+	// Measurement item (current tab)
 	measurementItem: {
-		backgroundColor: '#1E1E1E',
-		borderRadius: 16,
-		padding: 16,
-		marginBottom: 12,
-	},
-	measurementHeader: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 16,
-	},
-	measurementName: {
-		fontSize: 18,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-	},
-	trendBadge: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		backgroundColor: '#2C2C2E',
-		paddingHorizontal: 12,
-		paddingVertical: 6,
+		backgroundColor: '#1C1C1E',
 		borderRadius: 12,
-		gap: 6,
+		paddingHorizontal: 12,
+		paddingVertical: 10,
+		marginBottom: 6,
+		borderWidth: 1,
+		borderColor: '#2C2C2E',
+		gap: 10,
 	},
-	changeText: {
-		fontSize: 14,
-		fontWeight: '600',
-	},
-	valuesContainer: {
-		flexDirection: 'row',
-		gap: 16,
-		marginBottom: 16,
-	},
-	valueColumn: {
-		flex: 1,
-	},
-	valueLabel: {
-		fontSize: 12,
-		color: '#8E8E93',
-		marginBottom: 4,
-	},
-	currentValue: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-	},
-	goalValue: {
-		fontSize: 20,
-		color: '#FF9500',
-	},
-	goalContainer: {
-		marginBottom: 12,
-	},
-	goalInfo: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
+	measurementIconWrap: {
+		width: 32,
+		height: 32,
+		borderRadius: 9,
+		backgroundColor: 'rgba(52,199,89,0.1)',
 		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	measurementBody: { flex: 1, gap: 2 },
+	measurementName: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
+	measurementDate: { fontSize: 11, color: '#8E8E93' },
+	measurementRight: { alignItems: 'flex-end', gap: 3 },
+	measurementValue: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+	measurementUnit: { fontSize: 12, fontWeight: '400', color: '#8E8E93' },
+	changeBadge: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 3,
+	},
+	changeText: { fontSize: 11, fontWeight: '600' },
+
+	// History item
+	historyItem: {
+		backgroundColor: '#1C1C1E',
+		borderRadius: 12,
 		marginBottom: 8,
-	},
-	goalLabel: {
-		fontSize: 14,
-		color: '#8E8E93',
-	},
-	progressText: {
-		fontSize: 14,
-		fontWeight: '600',
-	},
-	progressBar: {
-		height: 6,
-		backgroundColor: '#2C2C2E',
-		borderRadius: 3,
+		borderWidth: 1,
+		borderColor: '#2C2C2E',
 		overflow: 'hidden',
 	},
-	progressFill: {
-		height: '100%',
-		borderRadius: 3,
-	},
-	dateText: {
-		fontSize: 12,
-		color: '#8E8E93',
-	},
-	historyListContainer: {
-		paddingHorizontal: 10,
-		paddingTop: 8,
-		paddingBottom: 100,
-	},
-	historyItem: {
-		backgroundColor: '#1E1E1E',
-		borderRadius: 16,
-		padding: 16,
-		marginBottom: 12,
-	},
-	historyHeader: {
-		marginBottom: 12,
-	},
-	historyDateContainer: {
+	historyDateRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		gap: 8,
+		gap: 6,
+		paddingHorizontal: 12,
+		paddingVertical: 8,
+		backgroundColor: '#242424',
 	},
-	historyDate: {
-		fontSize: 16,
-		fontWeight: '600',
-		color: '#34C759',
-	},
-	historyMeasurement: {
+	historyDate: { fontSize: 13, fontWeight: '600', color: '#34C759' },
+	historyRow: {
 		flexDirection: 'row',
-		justifyContent: 'space-between',
 		alignItems: 'center',
-		paddingVertical: 10,
+		paddingHorizontal: 12,
+		paddingVertical: 8,
 		borderBottomWidth: 1,
 		borderBottomColor: '#2C2C2E',
 	},
-	historyName: {
-		fontSize: 14,
-		color: '#B0B0B0',
-		flex: 2,
-	},
+	historyName: { flex: 2, fontSize: 13, color: '#B0B0B0' },
 	historyValue: {
-		fontSize: 14,
+		flex: 1,
+		fontSize: 13,
 		fontWeight: '600',
 		color: '#FFFFFF',
-		flex: 1,
 		textAlign: 'center',
 	},
 	historyChange: {
-		fontSize: 14,
-		fontWeight: '600',
 		flex: 1,
+		fontSize: 13,
+		fontWeight: '600',
 		textAlign: 'right',
 	},
-	emptyContainer: {
-		alignItems: 'center',
-		justifyContent: 'center',
-		paddingVertical: 80,
-	},
-	emptyText: {
-		fontSize: 18,
-		color: '#FFFFFF',
-		fontWeight: '600',
-		marginTop: 16,
-		marginBottom: 8,
-	},
-	emptySubtext: {
-		fontSize: 14,
-		color: '#8E8E93',
-	},
+
+	// Empty
+	emptyWrap: { alignItems: 'center', paddingTop: 60, gap: 12 },
+	emptyText: { fontSize: 15, color: '#8E8E93' },
+
+	// Modal
 	modalOverlay: {
 		flex: 1,
-		backgroundColor: 'rgba(0, 0, 0, 0.5)',
+		backgroundColor: 'rgba(0,0,0,0.6)',
 		justifyContent: 'flex-end',
 	},
 	modalContent: {
-		backgroundColor: '#1E1E1E',
-		borderTopLeftRadius: 24,
-		borderTopRightRadius: 24,
-		paddingTop: 24,
-		maxHeight: '80%',
+		backgroundColor: '#1C1C1E',
+		borderTopLeftRadius: 20,
+		borderTopRightRadius: 20,
+		padding: 20,
 	},
 	modalHeader: {
 		flexDirection: 'row',
-		justifyContent: 'space-between',
 		alignItems: 'center',
-		paddingHorizontal: 10,
-		marginBottom: 24,
+		gap: 10,
+		marginBottom: 20,
 	},
-	modalTitle: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-		flex: 1,
+	modalIconWrap: {
+		width: 34,
+		height: 34,
+		borderRadius: 10,
+		backgroundColor: 'rgba(52,199,89,0.1)',
+		alignItems: 'center',
+		justifyContent: 'center',
 	},
-	closeButton: {
-		padding: 4,
-	},
-	modalBody: {
-		paddingHorizontal: 10,
-		paddingBottom: 40,
-	},
-	modalStatsGrid: {
+	modalTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
+	modalStatsRow: {
 		flexDirection: 'row',
-		flexWrap: 'wrap',
-		gap: 16,
-		marginBottom: 32,
+		gap: 8,
+		marginBottom: 16,
 	},
 	modalStat: {
-		width: '48%',
-		marginBottom: 16,
+		flex: 1,
+		backgroundColor: '#242424',
+		borderRadius: 10,
+		padding: 12,
+		gap: 4,
 	},
-	modalStatLabel: {
-		fontSize: 14,
-		color: '#8E8E93',
-		marginBottom: 8,
-	},
-	modalStatValue: {
-		fontSize: 20,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-	},
-	changeContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 6,
-	},
+	modalStatLabel: { fontSize: 11, color: '#8E8E93' },
+	modalStatValue: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+	modalChangeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+
+	// Goal
 	goalSection: {
-		marginBottom: 32,
-	},
-	sectionTitle: {
-		fontSize: 16,
-		fontWeight: '600',
-		color: '#FFFFFF',
+		backgroundColor: '#242424',
+		borderRadius: 10,
+		padding: 12,
 		marginBottom: 16,
-	},
-	goalProgress: {
-		backgroundColor: '#2C2C2E',
-		borderRadius: 12,
-		padding: 16,
+		gap: 8,
 	},
 	goalHeader: {
 		flexDirection: 'row',
 		justifyContent: 'space-between',
 		alignItems: 'center',
-		marginBottom: 12,
 	},
-	goalText: {
-		fontSize: 14,
-		color: '#B0B0B0',
+	goalLabel: { fontSize: 13, color: '#8E8E93' },
+	goalPercent: { fontSize: 14, fontWeight: '700' },
+	progressBar: {
+		height: 4,
+		backgroundColor: '#3A3A3C',
+		borderRadius: 2,
+		overflow: 'hidden',
 	},
-	progressPercent: {
-		fontSize: 16,
-		fontWeight: 'bold',
-	},
-	modalActions: {
-		flexDirection: 'row',
-		gap: 12,
-	},
-	editButton: {
+	progressFill: { height: '100%', borderRadius: 2 },
+
+	// Modal actions
+	modalActions: { flexDirection: 'row', gap: 10 },
+	editBtn: {
 		flex: 1,
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'center',
 		backgroundColor: '#34C759',
-		paddingVertical: 14,
+		paddingVertical: 13,
 		borderRadius: 12,
-		gap: 8,
+		gap: 6,
 	},
-	editButtonText: {
-		fontSize: 16,
-		color: '#FFFFFF',
-		fontWeight: '600',
-	},
-	deleteButton: {
+	editBtnText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+	deleteBtn: {
 		flex: 1,
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'center',
-		backgroundColor: 'transparent',
 		borderWidth: 1,
 		borderColor: '#FF3B30',
-		paddingVertical: 14,
+		paddingVertical: 13,
 		borderRadius: 12,
-		gap: 8,
+		gap: 6,
 	},
-	deleteButtonText: {
-		fontSize: 16,
-		color: '#FF3B30',
-		fontWeight: '600',
-	},
+	deleteBtnText: { fontSize: 15, fontWeight: '600', color: '#FF3B30' },
+
+	// FAB
 	fab: {
 		position: 'absolute',
 		bottom: 30,
 		right: 20,
-		width: 56,
-		height: 56,
-		borderRadius: 28,
+		width: 52,
+		height: 52,
+		borderRadius: 26,
 		backgroundColor: '#34C759',
 		alignItems: 'center',
 		justifyContent: 'center',
-		elevation: 8,
-		shadowColor: '#000',
+		shadowColor: '#34C759',
 		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.3,
-		shadowRadius: 4,
+		shadowOpacity: 0.35,
+		shadowRadius: 8,
+		elevation: 8,
+	},
+
+	// Новые стили для пагинации и скелетонов
+	loadingFooter: {
+		paddingVertical: 20,
+		alignItems: 'center',
+		justifyContent: 'center',
+		flexDirection: 'row',
+		gap: 8,
+	},
+	loadingFooterText: {
+		color: '#8E8E93',
+		fontSize: 14,
 	},
 })

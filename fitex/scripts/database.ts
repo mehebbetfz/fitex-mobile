@@ -1,4 +1,5 @@
 // scripts/database.ts
+import { ALL_MUSCLES } from '@/constants/muscles'
 import * as SQLite from 'expo-sqlite'
 
 export interface ActiveWorkout {
@@ -101,15 +102,29 @@ export interface PersonalRecord {
 	created_at?: string
 }
 
+interface MuscleFatigue {
+	muscleId: string
+	fatigueAmount: number  // 0-100, насколько увеличится усталость
+}
+
+// Базовая усталость для разных типов мышц
+const BASE_FATIGUE = {
+	primary: 25,      // основные мышцы получают 25% усталости за подход
+	secondary: 15,    // второстепенные - 15%
+	stabilizer: 10,   // стабилизаторы - 10%
+}
+
 export interface RecoveryData {
 	id?: number
+	muscle_id: string
 	muscle_name: string
+	group_name: string
 	status: 'recovered' | 'recovering' | 'needs_rest'
-	recovery: number // процент
+	recovery: number
+	fatigue: number
 	last_trained: string
 	updated_at?: string
 }
-
 export interface UserStats {
 	id?: number
 	date: string
@@ -137,6 +152,52 @@ export const markAsSynced = async (
 		`UPDATE ${tableName} SET synced = 1 WHERE id IN (${placeholders})`,
 		ids
 	)
+}
+
+export const calculateExerciseFatigue = (
+	exercise: {
+		primaryFrontMuscles?: string[]
+		secondaryFrontMuscles?: string[]
+		primaryBackMuscles?: string[]
+		secondaryBackMuscles?: string[]
+	},
+	sets: number,  // количество подходов
+	intensity: number = 1,  // интенсивность (0.5-1.5) на основе веса
+): MuscleFatigue[] => {
+	const fatigueMap = new Map<string, number>()
+
+	// Функция для добавления усталости мышце
+	const addFatigue = (muscleId: string, baseAmount: number) => {
+		const current = fatigueMap.get(muscleId) || 0
+		// Усталость пропорциональна количеству подходов и интенсивности
+		const totalFatigue = current + (baseAmount * sets * intensity)
+		fatigueMap.set(muscleId, Math.min(totalFatigue, 100)) // максимум 100%
+	}
+
+	// Основные мышцы (перед)
+	exercise.primaryFrontMuscles?.forEach(muscleId => {
+		addFatigue(muscleId, BASE_FATIGUE.primary)
+	})
+
+	// Основные мышцы (спина)
+	exercise.primaryBackMuscles?.forEach(muscleId => {
+		addFatigue(muscleId, BASE_FATIGUE.primary)
+	})
+
+	// Второстепенные мышцы (перед)
+	exercise.secondaryFrontMuscles?.forEach(muscleId => {
+		addFatigue(muscleId, BASE_FATIGUE.secondary)
+	})
+
+	// Второстепенные мышцы (спина)
+	exercise.secondaryBackMuscles?.forEach(muscleId => {
+		addFatigue(muscleId, BASE_FATIGUE.secondary)
+	})
+
+	return Array.from(fatigueMap.entries()).map(([muscleId, fatigueAmount]) => ({
+		muscleId,
+		fatigueAmount,
+	}))
 }
 
 
@@ -213,14 +274,18 @@ export const initDatabase = async () => {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`)
 
+
 		await db.execAsync(`CREATE TABLE IF NOT EXISTS recovery_data (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			muscle_name TEXT NOT NULL,
-			status TEXT NOT NULL,
-			recovery INTEGER NOT NULL,
-			last_trained TEXT NOT NULL,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`)
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    muscle_id TEXT NOT NULL UNIQUE,  -- уникальный ID мышцы
+    muscle_name TEXT NOT NULL,        -- отображаемое имя
+    group_name TEXT NOT NULL,         -- группа для группировки
+    status TEXT NOT NULL DEFAULT 'not_trained',
+    recovery INTEGER NOT NULL,
+    fatigue REAL DEFAULT 0,           -- текущая усталость (0-100)
+    last_trained TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`)
 
 		await db.execAsync(`CREATE TABLE IF NOT EXISTS user_stats (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1034,6 +1099,8 @@ export const createCompletedWorkout = async (workoutData: {
 		console.log('Успешно завершено ✓')
 		console.log('═'.repeat(60))
 
+		await checkAndSavePersonalRecords(workoutData.exercises)
+
 		return workoutId
 	} catch (error) {
 		console.error('Ошибка при создании завершённой тренировки:')
@@ -1768,6 +1835,7 @@ export const getRecoveryData = async (): Promise<RecoveryData[]> => {
 		const results = await db.getAllAsync(
 			'SELECT * FROM recovery_data ORDER BY muscle_name',
 		)
+
 		return results as RecoveryData[]
 	} catch (error) {
 		console.error('Error getting recovery data:', error)
@@ -2093,4 +2161,384 @@ export interface WorkoutStats {
 	total_volume: number
 	streak_days: number
 	avg_duration: number
+}
+
+// ─────────────────────────────────────────────
+// ДОБАВИТЬ В: scripts/database.ts
+// ─────────────────────────────────────────────
+
+// ========== INTERFACES ==========
+
+export interface WorkoutTemplate {
+	id?: number
+	name: string
+	description?: string
+	estimated_duration?: number // минуты
+	muscle_groups: string
+	exercises_count: number
+	created_at?: string
+	updated_at?: string
+}
+
+export interface TemplateExercise {
+	id?: number
+	template_id: number
+	name: string
+	muscle_group: string
+	order_index: number
+	default_sets: number
+	default_reps: number
+	default_weight: number
+}
+
+// ========== INIT ==========
+
+export const initTemplatesTables = async () => {
+	const db = openDatabase()
+	try {
+		await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS workout_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        estimated_duration INTEGER DEFAULT 60,
+        muscle_groups TEXT DEFAULT '',
+        exercises_count INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS template_exercises (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        muscle_group TEXT NOT NULL,
+        order_index INTEGER NOT NULL,
+        default_sets INTEGER DEFAULT 3,
+        default_reps INTEGER DEFAULT 10,
+        default_weight REAL DEFAULT 0,
+        FOREIGN KEY (template_id) REFERENCES workout_templates (id) ON DELETE CASCADE
+      );
+    `)
+	} catch (error) {
+		console.error('Error initializing templates tables:', error)
+		throw error
+	}
+}
+
+// ========== TEMPLATE CRUD ==========
+
+export const createTemplate = async (
+	template: Omit<WorkoutTemplate, 'id' | 'created_at' | 'updated_at'>,
+	exercises: Omit<TemplateExercise, 'id' | 'template_id'>[],
+): Promise<number> => {
+	const db = openDatabase()
+	let templateId = 0
+
+	await db.withTransactionAsync(async () => {
+		const muscleGroups = [...new Set(exercises.map(e => e.muscle_group))].join(',')
+		const res = await db.runAsync(
+			`INSERT INTO workout_templates (name, description, estimated_duration, muscle_groups, exercises_count)
+       VALUES (?, ?, ?, ?, ?)`,
+			[template.name, template.description ?? null, template.estimated_duration ?? 60, muscleGroups, exercises.length],
+		)
+		templateId = res.lastInsertRowId as number
+
+		for (const ex of exercises) {
+			await db.runAsync(
+				`INSERT INTO template_exercises (template_id, name, muscle_group, order_index, default_sets, default_reps, default_weight)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				[templateId, ex.name, ex.muscle_group, ex.order_index, ex.default_sets, ex.default_reps, ex.default_weight],
+			)
+		}
+	})
+
+	return templateId
+}
+
+export const getTemplates = async (): Promise<WorkoutTemplate[]> => {
+	const db = openDatabase()
+	const results = await db.getAllAsync('SELECT * FROM workout_templates ORDER BY updated_at DESC')
+	return results as WorkoutTemplate[]
+}
+
+export const getTemplateById = async (
+	id: number,
+): Promise<{ template: WorkoutTemplate; exercises: TemplateExercise[] } | null> => {
+	const db = openDatabase()
+	const rows = await db.getAllAsync('SELECT * FROM workout_templates WHERE id = ?', id)
+	if (!rows.length) return null
+	const exercises = await db.getAllAsync(
+		'SELECT * FROM template_exercises WHERE template_id = ? ORDER BY order_index',
+		id,
+	)
+	return { template: rows[0] as WorkoutTemplate, exercises: exercises as TemplateExercise[] }
+}
+
+export const updateTemplate = async (
+	id: number,
+	template: Partial<WorkoutTemplate>,
+	exercises?: Omit<TemplateExercise, 'id' | 'template_id'>[],
+): Promise<boolean> => {
+	const db = openDatabase()
+	await db.withTransactionAsync(async () => {
+		const muscleGroups = exercises
+			? [...new Set(exercises.map(e => e.muscle_group))].join(',')
+			: template.muscle_groups ?? null
+
+		await db.runAsync(
+			`UPDATE workout_templates
+       SET name = COALESCE(?, name),
+           description = COALESCE(?, description),
+           estimated_duration = COALESCE(?, estimated_duration),
+           muscle_groups = COALESCE(?, muscle_groups),
+           exercises_count = COALESCE(?, exercises_count),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+			[template.name ?? null, template.description ?? null, template.estimated_duration ?? null, muscleGroups, exercises ? exercises.length : null, id],
+		)
+
+		if (exercises) {
+			await db.runAsync('DELETE FROM template_exercises WHERE template_id = ?', id)
+			for (const ex of exercises) {
+				await db.runAsync(
+					`INSERT INTO template_exercises (template_id, name, muscle_group, order_index, default_sets, default_reps, default_weight)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+					[id, ex.name, ex.muscle_group, ex.order_index, ex.default_sets, ex.default_reps, ex.default_weight],
+				)
+			}
+		}
+	})
+	return true
+}
+
+export const deleteTemplate = async (id: number): Promise<boolean> => {
+	const db = openDatabase()
+	await db.runAsync('DELETE FROM workout_templates WHERE id = ?', id)
+	return true
+}
+
+// ========== RECOVERY LOGIC ==========
+
+/**
+ * Вычисляет статус восстановления мышцы по дате последней тренировки.
+ * Полное восстановление = 72 часа.
+ */
+// В database.ts
+/**
+ * Вычисляет статус восстановления мышцы по усталости и времени
+ */
+export const calculateMuscleRecovery = (
+	fatigue: number,
+	lastTrainedDate: string | null,
+): { status: 'recovered' | 'recovering' | 'needs_rest'; recovery: number } => {
+	// Если мышца никогда не тренировалась или тренировалась очень давно
+	if (!lastTrainedDate) return { status: 'recovered', recovery: 100 }
+
+	const hoursElapsed = (Date.now() - new Date(lastTrainedDate).getTime()) / 3_600_000
+
+	// Если тренировка была только что (меньше часа назад) и есть усталость
+	if (hoursElapsed < 1 && fatigue > 0) {
+		return { status: 'needs_rest', recovery: 0 }
+	}
+
+	// Восстановление идет со скоростью ~1.4% в час (100% за 72 часа)
+	const recoveryFromTime = Math.min(100, (hoursElapsed / 72) * 100)
+
+	// Итоговое восстановление = восстановление по времени - оставшаяся усталость
+	const totalRecovery = Math.max(0, Math.min(100, recoveryFromTime - fatigue))
+
+	const status: 'recovered' | 'recovering' | 'needs_rest' =
+		totalRecovery >= 95 ? 'recovered' :
+			totalRecovery >= 50 ? 'recovering' : 'needs_rest'
+
+	return { status, recovery: Math.round(totalRecovery) }
+}
+
+/**
+ * Пересчитывает recovery для всех мышц по last_trained и fatigue
+ */
+export const recalculateAllRecovery = async (): Promise<void> => {
+	const db = openDatabase()
+	const all = await db.getAllAsync('SELECT * FROM recovery_data') as Array<{
+		id: number
+		muscle_id: string
+		fatigue: number
+		last_trained: string
+	}>
+
+	for (const m of all) {
+		const { status, recovery } = calculateMuscleRecovery(m.fatigue, m.last_trained)
+		await db.runAsync(
+			'UPDATE recovery_data SET status = ?, recovery = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+			[status, recovery, m.id]
+		)
+	}
+}
+
+// В database.ts - функция для инициализации всех мышц
+export const initializeAllMuscles = async (): Promise<void> => {
+	const db = openDatabase()
+	// Устанавливаем last_trained на 7 дней назад, чтобы мышцы были восстановлены
+	const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+	for (const [muscleId, info] of Object.entries(ALL_MUSCLES)) {
+		const existing = await db.getAllAsync(
+			'SELECT id FROM recovery_data WHERE muscle_id = ?',
+			muscleId
+		)
+
+		if (existing.length === 0) {
+			await db.runAsync(
+				`INSERT INTO recovery_data 
+         (muscle_id, muscle_name, group_name, status, recovery, fatigue, last_trained)
+         VALUES (?, ?, ?, 'recovered', 100, 0, ?)`,
+				[muscleId, info.name, info.group, sevenDaysAgo]
+			)
+		}
+	}
+
+	await recalculateAllRecovery()
+}
+
+/**
+ * Сбрасывает восстановление мышц до 0% после завершения тренировки.
+ * Вызывается внутри completeActiveWorkout / createCompletedWorkout.
+ */
+export const updateRecoveryAfterWorkout = async (
+	exercises: Array<{
+		name: string
+		sets: Array<{ weight: number; reps: number; completed: boolean }>
+		primaryFrontMuscles?: string[]
+		secondaryFrontMuscles?: string[]
+		primaryBackMuscles?: string[]
+		secondaryBackMuscles?: string[]
+	}>
+): Promise<void> => {
+
+	const db = openDatabase()
+	const now = new Date().toISOString()
+
+	// Собираем усталость от всех упражнений
+	const allFatigue = new Map<string, number>()
+
+	for (const exercise of exercises) {
+
+		// Считаем только выполненные подходы
+		const completedSets = exercise.sets.filter(s => s).length
+		if (completedSets === 0) continue
+
+		// Рассчитываем интенсивность на основе среднего веса
+		const avgWeight = exercise.sets.reduce((sum, s) => sum + s.weight, 0) / exercise.sets.length
+		const intensity = Math.min(1.5, Math.max(0.5, avgWeight / 100)) // примерная нормализация
+
+		const fatigue = calculateExerciseFatigue(
+			{
+				primaryFrontMuscles: exercise.primaryFrontMuscles,
+				secondaryFrontMuscles: exercise.secondaryFrontMuscles,
+				primaryBackMuscles: exercise.primaryBackMuscles,
+				secondaryBackMuscles: exercise.secondaryBackMuscles,
+			},
+			completedSets,
+			intensity,
+		)
+
+		fatigue.forEach(f => {
+			const current = allFatigue.get(f.muscleId) || 0
+			allFatigue.set(f.muscleId, Math.min(current + f.fatigueAmount, 100))
+		})
+	}
+
+	// Обновляем recovery_data для каждой мышцы
+	await db.withTransactionAsync(async () => {
+		for (const [muscleId, fatigue] of allFatigue) {
+			const muscleInfo = ALL_MUSCLES[muscleId]
+			if (!muscleInfo) continue
+
+			// Проверяем, есть ли запись для этой мышцы
+			const existing = await db.getAllAsync(
+				'SELECT id, fatigue FROM recovery_data WHERE muscle_id = ?',
+				muscleId
+			)
+
+			if (existing.length > 0) {
+				// Обновляем существующую запись
+				const currentFatigue = (existing[0] as any).fatigue || 0
+				const newFatigue = Math.min(currentFatigue + fatigue, 100)
+
+				await db.runAsync(
+					`UPDATE recovery_data 
+           SET fatigue = ?, 
+               status = 'needs_rest',
+               recovery = 0,
+               last_trained = ?,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE muscle_id = ?`,
+					[newFatigue, now, muscleId]
+				)
+			} else {
+				// Создаем новую запись
+				await db.runAsync(
+					`INSERT INTO recovery_data 
+           (muscle_id, muscle_name, group_name, status, recovery, fatigue, last_trained)
+           VALUES (?, ?, ?, 'needs_rest', 0, ?, ?)`,
+					[muscleId, muscleInfo.name, muscleInfo.group, fatigue, now]
+				)
+			}
+		}
+	})
+}
+
+export const checkAndSavePersonalRecords = async (
+	exercises: Array<{
+		name: string
+		muscle_group: string
+		sets: Array<{ weight: number; reps: number; completed: boolean }>
+	}>,
+): Promise<Array<{ exercise: string; weight: string; improvement: string }>> => {
+	const newRecords: Array<{ exercise: string; weight: string; improvement: string }> = []
+
+	// Загружаем все существующие рекорды один раз
+	const existingRecords = await getPersonalRecords()
+
+	for (const exercise of exercises) {
+		const completedSets = exercise.sets.filter(s => s.completed && s.weight > 0)
+		if (completedSets.length === 0) continue
+
+		// Максимальный вес в этой тренировке
+		const maxWeight = Math.max(...completedSets.map(s => s.weight))
+
+		// Предыдущий рекорд по этому упражнению (по максимальному весу)
+		const prevRecord = existingRecords
+			.filter(r => r.exercise.toLowerCase() === exercise.name.toLowerCase())
+			.sort((a, b) => parseFloat(b.weight) - parseFloat(a.weight))[0]
+
+		const prevWeight = prevRecord ? parseFloat(prevRecord.weight) : 0
+
+		// Сохраняем только если превысили предыдущий рекорд
+		if (maxWeight > prevWeight) {
+			const improvement =
+				prevWeight > 0
+					? `+${(maxWeight - prevWeight).toFixed(1)} кг`
+					: 'Первый рекорд'
+
+			await addPersonalRecord({
+				exercise: exercise.name,
+				weight: `${maxWeight} кг`,
+				date: getCurrentDate(),
+				trend: 'up',
+				category: 'strength',
+				notes: undefined,
+				previous_record: prevWeight > 0 ? `${prevWeight} кг` : undefined,
+				improvement,
+			})
+
+			newRecords.push({
+				exercise: exercise.name,
+				weight: `${maxWeight} кг`,
+				improvement,
+			})
+		}
+	}
+
+	return newRecords
 }

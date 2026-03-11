@@ -5,10 +5,7 @@ export const muscle_groups = [
 		id: 'chest',
 		name: 'Грудь',
 		image: manFrontMuscleGroupParts.rectoralFull,
-		imagePosition: {
-			width: '100%',
-			top: 20,
-		},
+		position: { left: '-103%', top: '-150%' },
 		subgroups: [
 			{
 				id: 'chest-upper',
@@ -31,14 +28,10 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v1/v2.png'),
 						],
 						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_1.mp4',
-						primaryMuscles: ['Грудные мышцы'],
-						secondaryMuscles: ['Передние дельты', 'Трицепс'],
-						primaryFrontMuscles: ['leftPectoralisMajor', 'rightPectoralisMajor'],
-						muscleActivityPercent: {
-							leftPectoralisMajor: 60,
-							rightPectoralisMajor: 60,
-						},
-						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
+						primaryMuscles: ['Середина груди'],
+						secondaryMuscles: ['Передние дельты', 'Трицепс', 'Верх груди', 'Низ груди'],
+						primaryFrontMuscles: ['rightPectoralisMinor', 'leftPectoralisMinor'],
+						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid', 'rightPectoralisMajor', 'leftPectoralisMajor', 'rightSerratusAnterior', 'leftSerratusAnterior'],
 						primaryBackMuscles: [],
 						secondaryBackMuscles: ['leftTriceps', 'rightTriceps'],
 						tips: [
@@ -66,13 +59,20 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v3/v1.png'),
 							require('@/assets/training-videos/v3/v2.png'),
 						],
-						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_1.mp4',
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_3.mp4',
 						primaryMuscles: ['Верх груди'],
-						secondaryMuscles: ['Передние дельты', 'Трицепс'],
-						primaryFrontMuscles: ['rightPectoralisMajor', 'leftPectoralisMajor'],
-						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
+						secondaryMuscles: ['Передние дельты', 'Трицепс', 'Середина груди'],
+						primaryFrontMuscles: [
+							'rightPectoralisMajor', 'leftPectoralisMajor',
+						],
+						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid', 'rightSerratusAnterior', 'leftSerratusAnterior',
+							'rightPectoralisMinor', 'leftPectoralisMinor'
+						],
 						primaryBackMuscles: [],
-						secondaryBackMuscles: ['leftTriceps', 'rightTriceps'],
+						secondaryBackMuscles: [
+							'leftTriceps',
+							'rightTriceps',
+						],
 						tips: [
 							'Угол наклона скамьи 30–45 градусов (оптимально 30° для максимальной активации верха)',
 							'Сводите лопатки и держите грудь расправленной',
@@ -98,13 +98,14 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v8/v1.png'),
 							require('@/assets/training-videos/v8/v2.png'),
 						],
-						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_1.mp4',
-						primaryMuscles: ['Грудные мышцы'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_8.mp4',
+						primaryMuscles: ['Середина груди'],
 						secondaryMuscles: ['Передние дельты'],
-						primaryFrontMuscles: ['leftPectoralisMajor', 'rightPectoralisMajor'],
-						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
+						primaryFrontMuscles: ['rightPectoralisMinor', 'leftPectoralisMinor'],
+						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid', 'rightPectoralisMajor', 'leftPectoralisMajor', 'rightSerratusAnterior', 'leftSerratusAnterior'],
 						primaryBackMuscles: [],
-						secondaryBackMuscles: [],
+						secondaryBackMuscles: [
+						],
 						tips: [
 							'Отрегулируйте высоту сиденья так, чтобы кисти и локти находились на уровне середины груди',
 							'Плотно прижмите спину и затылок к спинке тренажера',
@@ -130,13 +131,20 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v21/v1.png'),
 							require('@/assets/training-videos/v21/v2.png'),
 						],
-						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_1.mp4',
-						primaryMuscles: ['Верх груди'],
-						secondaryMuscles: ['Передние дельты', 'Трицепс'],
-						primaryFrontMuscles: ['rightPectoralisMajor', 'leftPectoralisMajor'],
-						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_21.mp4',
+						primaryMuscles: ['Низ груди', 'Середина груди'],
+						secondaryMuscles: ['Передние дельты', 'Трицепс', 'Верх груди',],
+						primaryFrontMuscles: ['rightPectoralisMinor',
+							'rightSerratusAnterior', 'leftSerratusAnterior', 'leftPectoralisMinor'],
+
+						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid', 'rightPectoralisMajor', 'leftPectoralisMajor'],
+
 						primaryBackMuscles: [],
-						secondaryBackMuscles: ['leftTriceps', 'rightTriceps'],
+
+						secondaryBackMuscles: [
+							'leftTriceps',
+							'rightTriceps',
+						],
 						tips: [
 							'Настройте высоту сиденья так, чтобы рукоятки находились на уровне верхней части груди',
 							'Плотно прижмите лопатки и таз к спинке тренажера на протяжении всего подхода',
@@ -162,11 +170,14 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v22/v1.png'),
 							require('@/assets/training-videos/v22/v2.png'),
 						],
-						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_1.mp4',
-						primaryMuscles: ['Грудные мышцы'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_22.mp4',
+						primaryMuscles: ['Верх груди', 'Середина груди'],
 						secondaryMuscles: ['Передние дельты', 'Трицепс'],
-						primaryFrontMuscles: ['leftPectoralisMajor', 'rightPectoralisMajor'],
-						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
+						primaryFrontMuscles: ['rightPectoralisMinor',
+							'leftPectoralisMinor', 'rightPectoralisMajor', 'leftPectoralisMajor'],
+						secondaryFrontMuscles: [
+							'rightSerratusAnterior', 'leftSerratusAnterior'
+							, 'leftFrontDeltoid', 'rightFrontDeltoid'],
 						primaryBackMuscles: [],
 						secondaryBackMuscles: ['leftTriceps', 'rightTriceps'],
 						tips: [
@@ -194,11 +205,16 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v23/v1.png'),
 							require('@/assets/training-videos/v23/v2.png'),
 						],
-						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_1.mp4',
-						primaryMuscles: ['Верх груди'],
-						secondaryMuscles: ['Передние дельты', 'Трицепс'],
-						primaryFrontMuscles: ['leftPectoralisMajor', 'rightPectoralisMajor'],
-						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_23.mp4',
+						primaryMuscles: ['Верх груди', 'Середина груди'],
+						secondaryMuscles: ['Передние дельты', 'Трицепс', 'Низ груди'],
+						primaryFrontMuscles: [
+							'rightPectoralisMajor', 'leftPectoralisMajor',
+							'rightPectoralisMinor', 'leftPectoralisMinor',
+						],
+						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid',
+							'rightSerratusAnterior', 'leftSerratusAnterior'
+						],
 						primaryBackMuscles: [],
 						secondaryBackMuscles: ['leftTriceps', 'rightTriceps'],
 						tips: [
@@ -226,9 +242,19 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v65/v1.png'),
 							require('@/assets/training-videos/v65/v2.png'),
 						],
-						videoUrl: 'https://www.youtube.com/watch?v=8iPEnn-ltC8', // популярный ролик, можешь заменить
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_65.mp4', // популярный ролик, можешь заменить
 						primaryMuscles: ['Верх груди'],
-						secondaryMuscles: ['Передние дельты', 'Трицепс'],
+						secondaryMuscles: ['Передние дельты', 'Трицепс', 'Низ груди', 'Середина груди'],
+						primaryFrontMuscles: [
+							'rightPectoralisMajor', 'leftPectoralisMajor',
+						],
+						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid',
+							'rightSerratusAnterior', 'leftSerratusAnterior',
+							'rightPectoralisMinor', 'leftPectoralisMinor',
+
+						],
+						primaryBackMuscles: [],
+						secondaryBackMuscles: ['leftTriceps', 'rightTriceps'],
 						tips: [
 							'Угол 30–45 градусов',
 							'В нижней точке — максимальное растяжение (гантели чуть ниже плеч)',
@@ -254,11 +280,16 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v66/v1.png'),
 							require('@/assets/training-videos/v66/v2.png'),
 						],
-						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_1.mp4',
-						primaryMuscles: ['Грудные мышцы'],
-						secondaryMuscles: ['Передние дельты', 'Трицепс'],
-						primaryFrontMuscles: ['leftPectoralisMajor', 'rightPectoralisMajor'],
-						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_66.mp4',
+						primaryMuscles: ['Середина груди'],
+						secondaryMuscles: ['Передние дельты', 'Трицепс', 'Верх груди', 'Низ груди'],
+						primaryFrontMuscles: [
+							'rightPectoralisMinor', 'leftPectoralisMinor',
+						],
+						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid',
+							'rightSerratusAnterior', 'leftSerratusAnterior',
+							'rightPectoralisMajor', 'leftPectoralisMajor',
+						],
 						primaryBackMuscles: [],
 						secondaryBackMuscles: ['leftTriceps', 'rightTriceps'],
 						tips: [
@@ -286,13 +317,18 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v67/v1.png'),
 							require('@/assets/training-videos/v67/v2.png'),
 						],
-						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_1.mp4',
-						primaryMuscles: ['Грудные мышцы'],
-						secondaryMuscles: ['Передние дельты'],
-						primaryFrontMuscles: ['leftPectoralisMajor', 'rightPectoralisMajor'],
-						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_67.mp4',
+						primaryMuscles: ['Середина груди'],
+						secondaryMuscles: ['Передние дельты', 'Трицепс', 'Верх груди', 'Низ груди'],
+						primaryFrontMuscles: [
+							'rightPectoralisMinor', 'leftPectoralisMinor',
+						],
+						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid',
+							'rightSerratusAnterior', 'leftSerratusAnterior',
+							'rightPectoralisMajor', 'leftPectoralisMajor',
+						],
 						primaryBackMuscles: [],
-						secondaryBackMuscles: [],
+						secondaryBackMuscles: ['leftTriceps', 'rightTriceps'],
 						tips: [
 							'Держите локти слегка согнутыми («мягкими») на протяжении всего движения',
 							'Опускайте гантели по широкой дуге до уровня груди, чувствуя сильное растяжение',
@@ -304,10 +340,10 @@ export const muscle_groups = [
 						difficulty: 'Средний',
 					},
 					{
-						id: 'low-to-high-cable-fly',
-						name: 'Сведения в кроссовере снизу вверх',
+						id: 'high-to-low-cable-fly',  // лучше сменить id для ясности (или оставь, если не хочешь менять)
+						name: 'Сведения в кроссовере сверху вниз',
 						description:
-							'Лучшее изолирующее упражнение на верх груди. Постоянное натяжение + восходящая траектория идеально следуют ходу волокон ключичной головки.',
+							'Изолирующее упражнение для нижней и средней части грудных мышц. Траектория сверху вниз идеально следует ходу волокон стернальной головки pectoralis major, даёт постоянное натяжение и сильное сокращение внизу.',
 						image: require('@/assets/training-videos/v41/v2.png'),
 						imagePosition: {
 							width: '140%',
@@ -318,15 +354,38 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v41/v1.png'),
 							require('@/assets/training-videos/v41/v2.png'),
 						],
-						videoUrl: 'https://www.youtube.com/watch?v=5ooGhgz9QMM',
-						primaryMuscles: ['Верх груди'],
-						secondaryMuscles: ['Средняя часть груди'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_41.mp4',  // проверь, чтобы видео было именно high-to-low (сверху вниз)
+
+						primaryMuscles: ['Низ груди', 'Середина груди'],
+						secondaryMuscles: ['Передние дельты'],  // трицепс здесь минимален, можно убрать или оставить как tertiary
+
+						primaryFrontMuscles: [
+
+							'leftSerratusAnterior',
+							'rightSerratusAnterior',
+							'leftPectoralisMinor',
+							'rightPectoralisMinor',
+						],
+
+						secondaryFrontMuscles: [
+							'leftFrontDeltoid',
+							'rightFrontDeltoid',
+
+							'leftPectoralisMajor',
+							'rightPectoralisMajor',
+
+						],
+
+						primaryBackMuscles: [],
+
+						secondaryBackMuscles: [],  // трицепс почти не работает (нет разгибания локтя), поэтому пусто
+
 						tips: [
-							'Блоки в нижнем положении',
-							'Руки идут вверх и вперёд по дуге, сводятся на уровне глаз/шеи',
-							'В верхней точке — пиковое сокращение и сжатие 1–2 секунды',
-							'Лёгкий наклон корпуса вперёд',
-							'Движение только в плечевом суставе, не раскачивайтесь',
+							'Блоки в верхнем положении (high pulleys)',
+							'Руки идут вниз и вперёд по дуге, сводятся на уровне живота/ниже груди',
+							'В нижней точке — сильное сжатие груди 1–2 секунды, не расслабляйте',
+							'Лёгкий наклон корпуса вперёд для лучшего растяжения',
+							'Движение только в плечевом суставе, локти слегка согнуты, не раскачивайтесь',
 						],
 						equipment: ['Кроссовер'],
 						difficulty: 'Средний',
@@ -346,11 +405,16 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v42/v1.png'),
 							require('@/assets/training-videos/v42/v2.png'),
 						],
-						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_1.mp4',
-						primaryMuscles: ['Грудные мышцы'],
-						secondaryMuscles: ['Передние дельты'],
-						primaryFrontMuscles: ['leftPectoralisMajor', 'rightPectoralisMajor'],
-						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_42.mp4',
+						primaryMuscles: ['Середина груди'],
+						secondaryMuscles: ['Передние дельты', 'Низ груди', 'Верх груди'],
+						primaryFrontMuscles: [
+							'rightPectoralisMinor', 'leftPectoralisMinor',
+						],
+						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid',
+							'rightSerratusAnterior', 'leftSerratusAnterior',
+							'rightPectoralisMajor', 'leftPectoralisMajor',
+						],
 						primaryBackMuscles: [],
 						secondaryBackMuscles: [],
 						tips: [
@@ -378,11 +442,16 @@ export const muscle_groups = [
 							require('@/assets/training-videos/v43/v1.png'),
 							require('@/assets/training-videos/v43/v2.png'),
 						],
-						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_1.mp4',
-						primaryMuscles: ['Верх груди'],
-						secondaryMuscles: ['Передние дельты', 'Зубчатые мышцы'],
-						primaryFrontMuscles: ['leftPectoralisMajor', 'rightPectoralisMajor'],
-						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid'],
+						videoUrl: 'https://pub-4059e1140cbe4425b7bfe58afa6e7a85.r2.dev/training-videos/video_43.mp4',
+						primaryMuscles: ['Верх груди', 'Середина груди'],
+						secondaryMuscles: ['Передние дельты', 'Низ груди'],
+						primaryFrontMuscles: [
+							'rightPectoralisMajor', 'leftPectoralisMajor',
+							'rightPectoralisMinor', 'leftPectoralisMinor',
+						],
+						secondaryFrontMuscles: ['leftFrontDeltoid', 'rightFrontDeltoid',
+							'rightSerratusAnterior', 'leftSerratusAnterior'
+						],
 						primaryBackMuscles: [],
 						secondaryBackMuscles: [],
 						tips: [
@@ -402,120 +471,7 @@ export const muscle_groups = [
 				name: 'Низ груди',
 				image: manFrontMuscleGroupParts.pectoralisMinor, // или pectoralisMajorLower, если есть такая часть
 				exercises: [
-					{
-						id: 'decline-bench-press',
-						name: 'Жим штанги на скамье с отрицательным наклоном',
-						description:
-							'Базовое упражнение для акцента на нижнюю часть грудных мышц. Помогает сформировать четкую линию под грудью и добавить объём в нижней зоне.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=LfyQBUKR8DE',
-						primaryMuscles: ['Низ груди'],
-						secondaryMuscles: ['Трицепс', 'Передние дельты'],
-						tips: [
-							'Угол наклона скамьи -15°…-30° (чем ниже, тем сильнее акцент на низ)',
-							'Опускайте штангу к нижней части груди (ближе к солнечному сплетению)',
-							'Сводите лопатки и расправляйте грудь',
-							'Локти под углом ~45° к корпусу',
-							'Контролируйте опускание (негатив 2–3 секунды)',
-						],
-						equipment: ['Штанга', 'Скамья с отрицательным наклоном'],
-						difficulty: 'Средний',
-					},
-					{
-						id: 'decline-dumbbell-press',
-						name: 'Жим гантелей на скамье с отрицательным наклоном',
-						description:
-							'Отличный вариант для симметрии и большего растяжения низа груди. Гантели позволяют работать в полной амплитуде и устранять дисбаланс между сторонами.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=8iPEnn-ltC8', // адаптированный ролик, можешь заменить на decline
-						primaryMuscles: ['Низ груди'],
-						secondaryMuscles: ['Трицепс', 'Передние дельты'],
-						tips: [
-							'Угол -15°…-30°',
-							'В нижней точке — глубокое растяжение (гантели чуть ниже груди)',
-							'Сводите гантели по дуге вверху, не стучите их',
-							'Держите локти под углом, не разводите широко',
-							'Медленный негатив для максимальной нагрузки',
-						],
-						equipment: ['Гантели', 'Скамья с отрицательным наклоном'],
-						difficulty: 'Средний',
-					},
-					{
-						id: 'parallel-bar-dips-chest',
-						name: 'Отжимания на брусьях (акцент на грудь)',
-						description:
-							'Одно из лучших упражнений на нижнюю часть груди. При наклоне вперёд и разведении локтей в стороны максимально нагружает нижние волокна.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=2z8JmcrW-As',
-						primaryMuscles: ['Низ груди'],
-						secondaryMuscles: ['Трицепс', 'Передние дельты'],
-						tips: [
-							'Наклоняйтесь вперёд корпусом на 30–45°',
-							'Локти разводите в стороны (не назад, как в трицепсовом варианте)',
-							'Опускайтесь до комфортного растяжения (плечи не ниже локтей)',
-							'В верхней точке не разгибайте локти полностью — держите напряжение',
-							'Для прогресса — добавляйте отягощение на пояс',
-						],
-						equipment: ['Брусья (параллельные)'],
-						difficulty: 'Средний / Высокий',
-					},
-					{
-						id: 'high-to-low-cable-fly',
-						name: 'Сведения в кроссовере сверху вниз',
-						description:
-							'Лучшее изолирующее упражнение на низ груди с постоянным натяжением. Траектория сверху вниз идеально следует ходу нижних волокон.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=5ooGhgz9QMM',
-						primaryMuscles: ['Низ груди'],
-						secondaryMuscles: ['Средняя часть груди'],
-						tips: [
-							'Блоки в самом верхнем положении',
-							'Руки идут вниз и вперёд по дуге, сводятся ниже пояса/живота',
-							'В нижней точке — сильное сведение и пиковое сокращение 1–2 секунды',
-							'Лёгкий наклон корпуса вперёд для постоянного натяжения',
-							'Движение только в плечах, не раскачивайтесь',
-						],
-						equipment: ['Кроссовер'],
-						difficulty: 'Средний',
-					},
-					{
-						id: 'decline-dumbbell-fly',
-						name: 'Разведения гантелей на скамье с отрицательным наклоном',
-						description:
-							'Изолирующее упражнение для растяжки и сепарации низа груди. Добавляет объём и улучшает форму нижнего края грудных.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=Uj3ZOK5zMAk', // адаптированный для decline
-						primaryMuscles: ['Низ груди'],
-						secondaryMuscles: ['Передние дельты'],
-						tips: [
-							'Угол -15°…-30°',
-							'Лёгкий изгиб в локтях на всём диапазоне',
-							'Максимальное растяжение внизу (без боли в плечах)',
-							'Сводите гантели по широкой дуге вверх',
-							'Концентрируйтесь на ощущении в нижней части груди',
-						],
-						equipment: ['Гантели', 'Скамья с отрицательным наклоном'],
-						difficulty: 'Средний',
-					},
-					{
-						id: 'decline-pushup',
-						name: 'Отжимания с ногами на возвышении (decline push-ups)',
-						description:
-							'Эффективное упражнение с собственным весом для акцента на низ груди. Идеально для дома, разминки или добивки в конце тренировки.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=IODxDxX7oi4',
-						primaryMuscles: ['Низ груди'],
-						secondaryMuscles: ['Трицепс', 'Передние дельты', 'Пресс'],
-						tips: [
-							'Ноги на скамье/ступеньке — чем выше, тем сильнее акцент на низ',
-							'Ладони чуть шире плеч',
-							'Опускайтесь до касания грудью пола или почти до пола',
-							'Держите тело прямой линией, не прогибайтесь в пояснице',
-							'Для усложнения — добавьте паузу внизу или рюкзак с весом',
-						],
-						equipment: ['Собственный вес', 'Возвышение для ног'],
-						difficulty: 'Средний',
-					},
+					
 				],
 			},
 			{
@@ -523,133 +479,16 @@ export const muscle_groups = [
 				name: 'Середина груди',
 				image: manFrontMuscleGroupParts.serratusAnterior,
 				exercises: [
-					{
-						id: 'flat-barbell-bench-press',
-						name: 'Жим штанги лёжа на горизонтальной скамье',
-						description:
-							'Классика для общей массы и толщины средней части груди. Лучшее базовое упражнение для развития "плиты" в центре и силы всего верха тела.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=rT7DgCr-3_M',
-						primaryMuscles: ['Середина груди'],
-						secondaryMuscles: ['Трицепс', 'Передние дельты'],
-						tips: [
-							'Лопатки сведены и прижаты к скамье, грудь расправлена',
-							'Штанга опускается к середине груди (уровень сосков)',
-							'Локти под углом ~45° к корпусу (не разводите широко)',
-							'Мощный жим вверх + контроль на опускании (негатив 2–3 секунды)',
-							'Не отрывайте таз от скамьи, не выгибайте поясницу чрезмерно',
-						],
-						equipment: ['Штанга', 'Горизонтальная скамья'],
-						difficulty: 'Средний',
-					},
-					{
-						id: 'flat-dumbbell-bench-press',
-						name: 'Жим гантелей лёжа на горизонтальной скамье',
-						description:
-							'Отличный вариант для симметрии, большего диапазона движения и растяжения средней части груди. Помогает устранить дисбаланс между сторонами.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=VmB1G1K7v94',
-						primaryMuscles: ['Середина груди'],
-						secondaryMuscles: ['Трицепс', 'Передние дельты'],
-						tips: [
-							'В нижней точке — глубокое растяжение (гантели ниже уровня груди)',
-							'Движение по дуге: сводите гантели вместе вверху',
-							'Не стучите гантелями в верхней точке — держите постоянное напряжение',
-							'Локти не опускайте слишком низко, чтобы не нагружать плечи',
-							'Контролируйте весь диапазон, особенно негатив',
-						],
-						equipment: ['Гантели', 'Горизонтальная скамья'],
-						difficulty: 'Средний',
-					},
-					{
-						id: 'cable-crossover-middle',
-						name: 'Сведения в кроссовере на уровне груди',
-						description:
-							'Лучшее изолирующее для внутренней части груди. Постоянное натяжение + сведение по средней линии идеально прорабатывает середину и улучшает "раздел".',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=p0jD6J6vqLc',
-						primaryMuscles: ['Середина / внутренняя часть груди'],
-						secondaryMuscles: ['Нижняя часть груди'],
-						tips: [
-							'Блоки на уровне плеч или чуть ниже',
-							'Сводите руки перед собой на уровне груди / солнечного сплетения',
-							'В пиковой точке — сильное сжатие 1–2 секунды (как будто обнимаете дерево)',
-							'Лёгкий наклон корпуса вперёд для постоянного натяжения',
-							'Движение только в плечевых суставах, не раскачивайтесь',
-						],
-						equipment: ['Кроссовер'],
-						difficulty: 'Средний',
-					},
-					{
-						id: 'hex-press',
-						name: 'Hex press / жим гантелей с сведением',
-						description:
-							'Отличное упражнение для пикового сокращения в середине груди. Гантели прижаты друг к другу на всём диапазоне — максимальная активация внутренней части.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=0kX6e7e2q9I', // типичный hex press ролик
-						primaryMuscles: ['Середина / внутренняя часть груди'],
-						secondaryMuscles: ['Трицепс', 'Передние дельты'],
-						tips: [
-							'Гантели (лучше hex-формы) прижаты друг к другу на протяжении всего движения',
-							'Жмите вверх, сохраняя давление между гантелями',
-							'В верхней точке — дополнительное сжатие груди',
-							'Делайте медленно, фокусируйтесь на сведении',
-							'Подходит для добивки в конце тренировки',
-						],
-						equipment: ['Гантели'],
-						difficulty: 'Средний',
-					},
-					{
-						id: 'svend-press',
-						name: 'Svend press / сжатие диска / plate press',
-						description:
-							'Простое и эффективное изолирующее упражнение для внутренней груди. Постоянное сведение создаёт сильное сокращение в центре без большого веса.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=5ooGhgz9QMM', // адаптированный для Svend
-						primaryMuscles: ['Середина / внутренняя часть груди'],
-						secondaryMuscles: ['Передние дельты'],
-						tips: [
-							'Возьмите блин / диск / две гантели и сожмите ладонями на уровне груди',
-							'Выжимайте вперёд на прямых руках, сохраняя давление',
-							'В пиковой точке — максимальное сжатие 1–2 секунды',
-							'Делайте стоя или сидя, медленно',
-							'Идеально для пампа и добивки',
-						],
-						equipment: ['Блин от штанги / диск / гантели'],
-						difficulty: 'Средний',
-					},
-					{
-						id: 'close-grip-bench-press',
-						name: 'Жим штанги лёжа узким хватом',
-						description:
-							'Хорошо нагружает середину груди + трицепс. Узкий хват смещает акцент внутрь и помогает развить толщину в центре.',
-						image: manBackMuscleGroupParts.spineFull,
-						videoUrl: 'https://www.youtube.com/watch?v=wsDyQ0jCBV8',
-						primaryMuscles: ['Середина груди', 'Трицепс'],
-						secondaryMuscles: ['Передние дельты'],
-						tips: [
-							'Хват уже плеч (на ширине плеч или чуть уже)',
-							'Опускайте штангу к середине груди',
-							'Локти близко к корпусу',
-							'Контролируйте движение, не разводите локти',
-							'Можно использовать EZ-гриф для комфорта запястий',
-						],
-						equipment: ['Штанга', 'Горизонтальная скамья'],
-						difficulty: 'Средний',
-					},
+					
 				],
 			},
-			// ... остальные подгруппы
 		],
 	},
 	{
 		id: 'arms',
 		name: 'Руки',
 		image: manFrontMuscleGroupParts.armFull,
-		imagePosition: {
-			width: '100%',
-			top: -20,
-		},
+		position: { left: '-73%', top: '-180%' },
 		subgroups: [
 			{
 				id: 'biceps',
@@ -1211,10 +1050,7 @@ export const muscle_groups = [
 		id: 'deltoids',
 		name: 'Дельты',
 		image: manFrontMuscleGroupParts.deltoidsFull,
-		imagePosition: {
-			width: '100%',
-			top: 20,
-		},
+		position: { left: '-63%', top: '-160%' },
 		subgroups: [
 			{
 				id: 'deltoids-front',
@@ -1636,10 +1472,7 @@ export const muscle_groups = [
 		id: 'press',
 		name: 'Пресс',
 		image: manFrontMuscleGroupParts.pressFull,
-		imagePosition: {
-			width: '100%',
-			top: -60,
-		},
+		position: { left: '-103%', top: '-210%' },
 		subgroups: [
 			{
 				id: 'press-upper',
@@ -1934,10 +1767,7 @@ export const muscle_groups = [
 		id: 'legs',
 		name: 'Ноги',
 		image: manFrontMuscleGroupParts.upperLegFull,
-		imagePosition: {
-			width: '100%',
-			top: -140,
-		},
+		position: { left: '-103%', top: '-270%' },
 		subgroups: [
 			{
 				id: 'vastus-lateralis',
@@ -2859,10 +2689,7 @@ export const muscle_groups = [
 		id: 'spine',
 		name: 'Спина',
 		image: manBackMuscleGroupParts.spineFull,
-		imagePosition: {
-			width: '100%',
-			top: -30,
-		},
+		position: { left: '-103%', top: '-190%' },
 		subgroups: [
 			{
 				id: 'trapezius-upper',

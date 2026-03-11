@@ -1,5 +1,10 @@
 import { useDatabase } from '@/app/contexts/database-context'
 import ExerciseHistoryModal from '@/app/modals/exercise-history-modal'
+import { ExerciseSelectionModal } from '@/app/modals/exercise-selection.modal'
+import {
+	ExerciseFormItem,
+	TemplateFormData,
+} from '@/app/screens/create-template.screen'
 import { CachedVideo } from '@/components/cached-video'
 import ManBackSvg from '@/components/man-back-svg'
 import ManFrontSvg from '@/components/man-front-svg'
@@ -8,11 +13,12 @@ import {
 	manFrontMuscleGroupParts,
 } from '@/constants/images'
 import { muscle_groups } from '@/constants/muscle-groups'
+import { TemplateExercise, WorkoutTemplate } from '@/scripts/database'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Haptics from 'expo-haptics'
 import { Image } from 'expo-image'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useVideoPlayer } from 'expo-video'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -88,28 +94,7 @@ interface ExerciseDetail {
 	difficulty: 'Начинающий' | 'Средний' | 'Продвинутый'
 }
 
-interface MuscleSubgroup {
-	id: string
-	name: string
-	image: any
-	exercises: ExerciseDetail[]
-}
-
-interface MuscleGroup {
-	id: string
-	name: string
-	image: any
-	imagePosition?: any
-	subgroups: MuscleSubgroup[]
-}
-
-const MUSCLE_GROUPS: MuscleGroup[] = muscle_groups
-
-interface ExerciseSelectionModalProps {
-	visible: boolean
-	onClose: () => void
-	onSelectExercise: (exercise: { name: string; muscleGroup: string }) => void
-}
+const MUSCLE_GROUPS = muscle_groups
 
 const MUSCLE_FRONT_DATA = [
 	{
@@ -207,771 +192,108 @@ const MUSCLE_FRONT_DATA = [
 
 const MUSCLE_BACK_DATA = [
 	{
-		id: 'spine',
+		id: '1',
+		name: 'Ноги',
+		position: {
+			left: '-100%',
+			top: '-280%',
+		},
+		muscleImages: [
+			'leftBiceosFemoris',
+			'leftGastrocnemius',
+			'leftSemitendinosus',
+			'rightBiceosFemoris',
+			'rightGastrocnemius',
+			'rightSemitendinosus',
+		],
+		icon: manBackMuscleGroupParts.deltoidFull,
+	},
+	{
+		id: '2',
+		name: 'Предплечья',
+		position: {
+			left: '-100%',
+			top: '-220%',
+		},
+		muscleImages: [
+			'leftFlexorDigitorumProfundus',
+			'leftFlexorPollicisLongus',
+			'rightFlexorDigitorumProfundus',
+			'rightFlexorPollicisLongus',
+		],
+		icon: manBackMuscleGroupParts.internalOblique,
+	},
+	{
+		id: '3',
+		name: 'Ягодицы',
+		position: {
+			left: '-100%',
+			top: '-240%',
+		},
+		muscleImages: [
+			'leftGluteusMaximus',
+			'leftGluteusMedius',
+			'leftInternalOblique',
+			'rightGluteusMaximus',
+			'rightGluteusMedius',
+			'rightInternalOblique',
+		],
+		icon: manBackMuscleGroupParts.forearmFull,
+	},
+	{
+		id: '4',
 		name: 'Спина',
-		status: 'recovered',
-		recovery: 100,
-		color: '#96CEB4',
-		lastTrained: '5 дней назад',
+		position: {
+			left: '-100%',
+			top: '-180%',
+		},
 		muscleImages: [
 			'leftIntraspinatus',
 			'leftLatissimusDorsi',
 			'leftThoracolumbarFascia',
 			'rightIntraspinatus',
 			'rightLatissimusDorsi',
-			'leftLowerTrapezius',
-			'leftUpperTrapezius',
-			'rightLowerTrapezius',
-			'rightUpperTrapezius',
 			'rightThoracolumbarFascia',
 		],
 		icon: manBackMuscleGroupParts.deltoidFull,
 	},
+	{
+		id: '5',
+		name: 'Трапеции',
+		position: {
+			left: '-100%',
+			top: '-150%',
+		},
+		muscleImages: [
+			'leftLowerTrapezius',
+			'leftUpperTrapezius',
+			'rightLowerTrapezius',
+			'rightUpperTrapezius',
+		],
+		icon: manBackMuscleGroupParts.trapeziusFull,
+	},
+	{
+		id: '6',
+		name: 'Плечи',
+		position: {
+			left: '-70%',
+			top: '-150%',
+		},
+		muscleImages: ['leftRearDeltoid', 'rightRearDeltoid'],
+		icon: manBackMuscleGroupParts.upperLegFull,
+	},
+	{
+		id: '7',
+		name: 'Трицепс',
+		position: {
+			left: '-100%',
+			top: '-200%',
+		},
+		muscleImages: ['leftTriceps', 'rightTriceps'],
+		icon: manBackMuscleGroupParts.triceps,
+	},
 ]
 
-// ─────────────────────────────────────────────
-// Стили заголовка подгруппы
-// ─────────────────────────────────────────────
-const subgroupHeaderStyles = StyleSheet.create({
-	container: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		marginVertical: 20,
-		marginHorizontal: 4,
-	},
-	line: {
-		flex: 1,
-		height: 1,
-		backgroundColor: COLORS.border,
-	},
-	title: {
-		fontSize: 11,
-		fontWeight: '700',
-		color: COLORS.textSecondary,
-		textTransform: 'uppercase',
-		letterSpacing: 1.2,
-		marginHorizontal: 12,
-	},
-})
-
-// ─────────────────────────────────────────────
-// ExerciseSelectionModal
-// ─────────────────────────────────────────────
-const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
-	visible,
-	onClose,
-	onSelectExercise,
-}) => {
-	const [currentScreen, setCurrentScreen] = useState<
-		'groups' | 'exercises' | 'detail'
-	>('groups')
-	const [selectedMuscleGroup, setSelectedMuscleGroup] =
-		useState<MuscleGroup | null>(null)
-	const [selectedExercise, setSelectedExercise] =
-		useState<ExerciseDetail | null>(null)
-	const [searchQuery, setSearchQuery] = useState('')
-	const [activeTab, setActiveTab] = useState<'groups' | 'search'>('groups')
-	const [favorites, setFavorites] = useState<string[]>([])
-	const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current
-	const [modalVisible, setModalVisible] = useState(false)
-
-	const getSideAndColorsForGroup = (
-		groupName: string,
-	): { side: 'front' | 'back'; colors: { [key: string]: string } } => {
-		const frontGroup = MUSCLE_FRONT_DATA.find(g => g.id === groupName)
-		if (frontGroup) {
-			const colors: { [key: string]: string } = {}
-			frontGroup.muscleImages.forEach(key => {
-				colors[key] = COLORS.green
-			})
-			return { side: 'front', colors }
-		}
-
-		const backGroup = MUSCLE_BACK_DATA.find(g => g.id === groupName)
-		if (backGroup) {
-			const colors: { [key: string]: string } = {}
-			backGroup.muscleImages.forEach(key => {
-				colors[key] = COLORS.green
-			})
-			return { side: 'back', colors }
-		}
-
-		return { side: 'front', colors: {} }
-	}
-
-	useEffect(() => {
-		if (visible) {
-			setModalVisible(true)
-			Animated.timing(slideAnim, {
-				toValue: 0,
-				duration: 300,
-				useNativeDriver: true,
-			}).start()
-		} else {
-			Animated.timing(slideAnim, {
-				toValue: SCREEN_HEIGHT,
-				duration: 250,
-				useNativeDriver: true,
-			}).start(() => {
-				setModalVisible(false)
-				setCurrentScreen('groups')
-				setSelectedMuscleGroup(null)
-				setSelectedExercise(null)
-				setSearchQuery('')
-			})
-		}
-	}, [visible])
-
-	const toggleFavorite = (exerciseId: string) => {
-		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
-		setFavorites(prev =>
-			prev.includes(exerciseId)
-				? prev.filter(id => id !== exerciseId)
-				: [...prev, exerciseId],
-		)
-	}
-
-	// ── handleBack: убран шаг subgroups ──
-	const handleBack = () => {
-		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-		if (currentScreen === 'groups') {
-			onClose()
-		} else if (currentScreen === 'exercises') {
-			setCurrentScreen('groups')
-			setSelectedMuscleGroup(null)
-		} else if (currentScreen === 'detail') {
-			setCurrentScreen('exercises')
-			setSelectedExercise(null)
-		}
-	}
-
-	const handleSelectExercise = () => {
-		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
-		if (selectedExercise) {
-			onSelectExercise({
-				name: selectedExercise.name,
-				muscleGroup: selectedMuscleGroup?.name || '',
-			})
-			onClose()
-		}
-	}
-
-	const getTintColor = (percent: number): string => {
-		const p = Math.max(0, Math.min(100, percent)) / 100
-		const r = 255
-		const g = Math.round(255 * (1 - p))
-		const b = 0
-		const hexR = r.toString(16).padStart(2, '0')
-		const hexG = g.toString(16).padStart(2, '0')
-		const hexB = b.toString(16).padStart(2, '0')
-		return `#${hexR}${hexG}${hexB}`
-	}
-
-	const getFrontMuscleColors = (exercise: any) => {
-		const { primaryFrontMuscles, secondaryFrontMuscles } = exercise
-		const muscleColors: { [key: string]: string } = {}
-		MUSCLE_FRONT_DATA.forEach(muscle => {
-			muscle.muscleImages.forEach(imageKey => {
-				if (primaryFrontMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(100)
-				if (secondaryFrontMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(50)
-			})
-		})
-		return muscleColors
-	}
-
-	const getBackMuscleColors = (exercise: any) => {
-		const { primaryBackMuscles, secondaryBackMuscles } = exercise
-		const muscleColors: { [key: string]: string } = {}
-		MUSCLE_BACK_DATA.forEach(muscle => {
-			muscle.muscleImages.forEach(imageKey => {
-				if (primaryBackMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(100)
-				if (secondaryBackMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(50)
-			})
-		})
-		return muscleColors
-	}
-
-	const filteredExercises = useMemo(() => {
-		if (!searchQuery) return []
-		const query = searchQuery.toLowerCase()
-		return MUSCLE_GROUPS.flatMap(group =>
-			group.subgroups.flatMap(subgroup =>
-				subgroup.exercises.filter(
-					exercise =>
-						exercise.name.toLowerCase().includes(query) ||
-						exercise.description.toLowerCase().includes(query) ||
-						exercise.primaryMuscles.some(muscle =>
-							muscle.toLowerCase().includes(query),
-						),
-				),
-			),
-		)
-	}, [searchQuery])
-
-	const renderHeader = () => {
-		let title = 'Выберите упражнение'
-		if (currentScreen === 'exercises') title = selectedMuscleGroup?.name || ''
-		if (currentScreen === 'detail') title = selectedExercise?.name || ''
-
-		return (
-			<View style={modalStyles.header}>
-				<TouchableOpacity
-					style={modalStyles.backButton}
-					onPress={handleBack}
-					activeOpacity={0.7}
-				>
-					<Ionicons
-						name={currentScreen === 'groups' ? 'close' : 'arrow-back'}
-						size={24}
-						color={COLORS.text}
-					/>
-				</TouchableOpacity>
-				<Text style={modalStyles.headerTitle} numberOfLines={1}>
-					{title}
-				</Text>
-
-				{selectedExercise && (
-					<TouchableOpacity onPress={() => toggleFavorite(selectedExercise.id)}>
-						<Ionicons
-							name={
-								favorites.includes(selectedExercise.id)
-									? 'star'
-									: 'star-outline'
-							}
-							size={24}
-							color={
-								favorites.includes(selectedExercise.id)
-									? COLORS.primary
-									: COLORS.textSecondary
-							}
-						/>
-					</TouchableOpacity>
-				)}
-			</View>
-		)
-	}
-
-	const renderTabs = () => (
-		<View style={modalStyles.tabsContainer}>
-			<TouchableOpacity
-				style={[
-					modalStyles.tab,
-					activeTab === 'groups' && modalStyles.activeTab,
-				]}
-				onPress={() => {
-					Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-					setActiveTab('groups')
-				}}
-			>
-				<Ionicons
-					name='apps-outline'
-					size={20}
-					color={activeTab === 'groups' ? COLORS.primary : COLORS.textSecondary}
-				/>
-				<Text
-					style={[
-						modalStyles.tabText,
-						activeTab === 'groups' && modalStyles.activeTabText,
-					]}
-				>
-					Группы
-				</Text>
-			</TouchableOpacity>
-			<TouchableOpacity
-				style={[
-					modalStyles.tab,
-					activeTab === 'search' && modalStyles.activeTab,
-				]}
-				onPress={() => {
-					Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-					setActiveTab('search')
-					setSearchQuery('')
-				}}
-			>
-				<Ionicons
-					name='search-outline'
-					size={20}
-					color={activeTab === 'search' ? COLORS.primary : COLORS.textSecondary}
-				/>
-				<Text
-					style={[
-						modalStyles.tabText,
-						activeTab === 'search' && modalStyles.activeTabText,
-					]}
-				>
-					Поиск
-				</Text>
-			</TouchableOpacity>
-		</View>
-	)
-
-	const renderSearch = () => (
-		<View style={modalStyles.searchContainer}>
-			<View style={modalStyles.searchInner}>
-				<Ionicons name='search' size={20} color={COLORS.textSecondary} />
-				<TextInput
-					style={modalStyles.searchInput}
-					placeholder='Поиск упражнений...'
-					placeholderTextColor={COLORS.textSecondary}
-					value={searchQuery}
-					onChangeText={setSearchQuery}
-					autoFocus={activeTab === 'search'}
-				/>
-				{searchQuery.length > 0 && (
-					<TouchableOpacity onPress={() => setSearchQuery('')}>
-						<Ionicons
-							name='close-circle'
-							size={20}
-							color={COLORS.textSecondary}
-						/>
-					</TouchableOpacity>
-				)}
-			</View>
-		</View>
-	)
-
-	// ── Карточки групп мышц: нажатие → сразу exercises ──
-	const renderMuscleGroups = () => (
-		<FlatList
-			data={MUSCLE_GROUPS}
-			keyExtractor={item => item.id}
-			numColumns={2}
-			columnWrapperStyle={modalStyles.columnWrapper}
-			contentContainerStyle={modalStyles.muscleGroupsGrid}
-			showsVerticalScrollIndicator={false}
-			renderItem={({ item }) => {
-				const { side, colors } = getSideAndColorsForGroup(item.id)
-				return (
-					<TouchableOpacity
-						style={modalStyles.muscleGroupCard}
-						onPress={() => {
-							Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-							setSelectedMuscleGroup(item)
-							setCurrentScreen('exercises') // ← сразу в список
-						}}
-						activeOpacity={0.7}
-					>
-						<View style={modalStyles.muscleGroupImageContainer}>
-							{side === 'front' ? (
-								<View
-									style={{
-										...detailModalStyles.bodyImageContainer,
-										position: 'absolute',
-										top: item.imagePosition ? item.imagePosition.top : 0,
-									}}
-								>
-									<ManFrontSvg muscleColors={colors} />
-								</View>
-							) : (
-								<View
-									style={{
-										...detailModalStyles.bodyImageContainer,
-										position: 'absolute',
-										top: item.imagePosition ? item.imagePosition.top : 0,
-									}}
-								>
-									<ManBackSvg muscleColors={colors} />
-								</View>
-							)}
-						</View>
-						<View
-							style={{
-								backgroundColor: COLORS.cardLight,
-								borderBottomLeftRadius: 12,
-								borderBottomRightRadius: 12,
-							}}
-						>
-							<Text style={modalStyles.muscleGroupName}>{item.name}</Text>
-							<Text style={modalStyles.muscleGroupCount}>
-								{item.subgroups.reduce(
-									(acc, sg) => acc + sg.exercises.length,
-									0,
-								)}{' '}
-								упражнений
-							</Text>
-						</View>
-					</TouchableOpacity>
-				)
-			}}
-		/>
-	)
-
-	// ── Один элемент списка упражнений ──
-	const renderExerciseListItem = (item: ExerciseDetail) => (
-		<TouchableOpacity
-			key={item.id}
-			style={modalStyles.exerciseListItem}
-			onPress={() => {
-				Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-				setSelectedExercise(item)
-				setCurrentScreen('detail')
-			}}
-			activeOpacity={0.7}
-		>
-			<View style={modalStyles.exerciseListImage}>
-				<Image
-					transition={200}
-					source={item.image}
-					style={{
-						position: 'absolute',
-						width: item.imagePosition ? item.imagePosition.width : '100%',
-						height: '100%',
-						left: item.imagePosition ? item.imagePosition.left : 0,
-						transform: [
-							{ scaleX: item.imagePosition ? item.imagePosition.scaleX : 1 },
-						],
-					}}
-				/>
-			</View>
-
-			<View style={modalStyles.exerciseListContent}>
-				<View style={modalStyles.exerciseListHeader}>
-					<Text style={modalStyles.exerciseListName} numberOfLines={1}>
-						{item.name}
-					</Text>
-					<TouchableOpacity
-						onPress={e => {
-							Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-							e.stopPropagation()
-							toggleFavorite(item.id)
-						}}
-					>
-						<Ionicons
-							name={favorites.includes(item.id) ? 'star' : 'star-outline'}
-							size={22}
-							color={
-								favorites.includes(item.id)
-									? COLORS.primary
-									: COLORS.textSecondary
-							}
-						/>
-					</TouchableOpacity>
-				</View>
-				<Text style={modalStyles.exerciseListDescription} numberOfLines={2}>
-					{item.description}
-				</Text>
-				<View style={modalStyles.exerciseListTags}>
-					<View style={modalStyles.difficultyTag}>
-						<Text style={modalStyles.difficultyText}>{item.difficulty}</Text>
-					</View>
-					<View style={modalStyles.equipmentTag}>
-						<Text style={modalStyles.equipmentText}>
-							{item.equipment.length > 1
-								? `${item.equipment[0]} +${item.equipment.length - 1}`
-								: item.equipment[0]}
-						</Text>
-					</View>
-				</View>
-			</View>
-			<Ionicons name='chevron-forward' size={20} color={COLORS.textSecondary} />
-		</TouchableOpacity>
-	)
-
-	// ── Список упражнений: сгруппированный по подгруппам или поиск ──
-	const renderExercisesList = () => {
-		// Режим поиска — плоский список
-		if (activeTab === 'search' || !selectedMuscleGroup) {
-			return (
-				<FlatList
-					data={filteredExercises}
-					keyExtractor={item => item.id}
-					contentContainerStyle={modalStyles.exercisesList}
-					showsVerticalScrollIndicator={false}
-					renderItem={({ item }) => renderExerciseListItem(item)}
-					ListEmptyComponent={
-						<View style={modalStyles.emptyState}>
-							<Ionicons
-								name='search-outline'
-								size={64}
-								color={COLORS.textSecondary}
-							/>
-							<Text style={modalStyles.emptyStateTitle}>Ничего не найдено</Text>
-						</View>
-					}
-				/>
-			)
-		}
-
-		// Группируем по подгруппам
-		const sections = selectedMuscleGroup.subgroups
-			.map(subgroup => ({ subgroup, exercises: subgroup.exercises }))
-			.filter(s => s.exercises.length > 0)
-
-		return (
-			<ScrollView
-				showsVerticalScrollIndicator={false}
-				contentContainerStyle={[
-					modalStyles.exercisesList,
-					{ paddingBottom: 40 },
-				]}
-			>
-				{sections.map(({ subgroup, exercises }, sectionIndex) => (
-					<View key={subgroup.id}>
-						{/* Заголовок подгруппы */}
-						<View style={subgroupHeaderStyles.container}>
-							<View style={subgroupHeaderStyles.line} />
-							<Text style={subgroupHeaderStyles.title}>{subgroup.name}</Text>
-							<View style={subgroupHeaderStyles.line} />
-						</View>
-						{/* Упражнения подгруппы */}
-						{exercises.map(item => renderExerciseListItem(item))}
-					</View>
-				))}
-			</ScrollView>
-		)
-	}
-
-	const player = useVideoPlayer({ uri: selectedExercise?.videoUrl }, player => {
-		player.loop = true
-		player.play()
-		player.muted = true
-	})
-
-	const renderExerciseDetail = () => {
-		if (!selectedExercise) return null
-
-		return (
-			<View style={{ flex: 1, backgroundColor: COLORS.background }}>
-				<ScrollView
-					style={modalStyles.exerciseDetailContainer}
-					showsVerticalScrollIndicator={false}
-					contentContainerStyle={{ paddingBottom: 120 }}
-					keyboardShouldPersistTaps='handled'
-				>
-					<View style={modalStyles.exerciseDetailContent}>
-						<View style={modalStyles.exerciseHeader}>
-							<View style={modalStyles.exerciseTitleContainer}>
-								<Text style={modalStyles.exerciseDetailTitle}>
-									{selectedExercise.name}
-								</Text>
-							</View>
-
-							{selectedExercise.videoUrl && (
-								<CachedVideo
-									remoteUrl={selectedExercise?.videoUrl}
-									videoId={selectedExercise?.id ?? ''}
-									style={styles.video}
-									autoPlay={true}
-									loop={true}
-									muted={true}
-								/>
-							)}
-
-							{selectedExercise.images &&
-								selectedExercise.images.length > 0 && (
-									<ImageGallery images={selectedExercise.images} />
-								)}
-
-							{!selectedExercise.videoUrl &&
-								(!selectedExercise.images ||
-									selectedExercise.images.length === 0) && (
-									<View style={detailModalStyles.exerciseImageContainer}>
-										<Image
-											transition={200}
-											source={selectedExercise.image}
-											style={detailModalStyles.exerciseMainImage}
-										/>
-									</View>
-								)}
-
-							{!selectedExercise.videoUrl && (
-								<View style={detailModalStyles.exerciseImageContainer}>
-									<Image
-										transition={200}
-										source={selectedExercise.image}
-										style={detailModalStyles.exerciseMainImage}
-									/>
-								</View>
-							)}
-
-							<Text style={modalStyles.exerciseDetailDescriptionFull}>
-								{selectedExercise.description}
-							</Text>
-
-							<View style={modalStyles.detailStats}>
-								<View style={modalStyles.detailStat}>
-									<View style={modalStyles.detailStatIcon}>
-										<Ionicons name='barbell' size={18} color={COLORS.primary} />
-									</View>
-									<View>
-										<Text style={modalStyles.detailStatLabel}>Сложность</Text>
-										<Text style={modalStyles.detailStatValue}>
-											{selectedExercise.difficulty}
-										</Text>
-									</View>
-								</View>
-								<View style={modalStyles.detailStat}>
-									<View style={modalStyles.detailStatIcon}>
-										<Ionicons
-											name='construct'
-											size={18}
-											color={COLORS.primary}
-										/>
-									</View>
-									<View>
-										<Text style={modalStyles.detailStatLabel}>
-											Оборудование
-										</Text>
-										<Text style={modalStyles.detailStatValue}>
-											{selectedExercise.equipment.join(', ')}
-										</Text>
-									</View>
-								</View>
-							</View>
-						</View>
-
-						<View style={modalStyles.section}>
-							<Text style={modalStyles.sectionTitle}>Работающие мышцы</Text>
-							<View style={modalStyles.muscleGroupsGridDetail}>
-								<View style={modalStyles.muscleGroupItem}>
-									<View style={modalStyles.muscleGroupHeader}>
-										<Ionicons name='star' size={16} color={COLORS.primary} />
-										<Text style={modalStyles.muscleGroupLabel}>Основные:</Text>
-									</View>
-									{selectedExercise.primaryMuscles.map((muscle, index) => (
-										<View key={index} style={modalStyles.muscleItem}>
-											<View style={modalStyles.muscleDot} />
-											<Text style={modalStyles.muscleText}>{muscle}</Text>
-										</View>
-									))}
-								</View>
-
-								{selectedExercise.secondaryMuscles.length > 0 && (
-									<View style={modalStyles.muscleGroupItem}>
-										<View style={modalStyles.muscleGroupHeader}>
-											<Ionicons
-												name='star-outline'
-												size={16}
-												color={COLORS.textSecondary}
-											/>
-											<Text style={modalStyles.muscleGroupLabel}>
-												Второстепенные:
-											</Text>
-										</View>
-										{selectedExercise.secondaryMuscles.map((muscle, index) => (
-											<View key={index} style={modalStyles.muscleItem}>
-												<View style={modalStyles.muscleDotSecondary} />
-												<Text style={modalStyles.muscleTextSecondary}>
-													{muscle}
-												</Text>
-											</View>
-										))}
-									</View>
-								)}
-							</View>
-							<View style={{ flexDirection: 'row' }}>
-								<View style={styles.bodyImageContainer}>
-									<ManBackSvg
-										muscleColors={getBackMuscleColors(selectedExercise)}
-									/>
-								</View>
-								<View style={styles.bodyImageContainer}>
-									<ManFrontSvg
-										muscleColors={getFrontMuscleColors(selectedExercise)}
-									/>
-								</View>
-							</View>
-						</View>
-
-						<View style={modalStyles.section}>
-							<Text style={modalStyles.sectionTitle}>Техника выполнения</Text>
-							<View style={modalStyles.tipsList}>
-								{selectedExercise.tips.map((tip, index) => (
-									<View
-										key={index}
-										style={{
-											...modalStyles.tipItem,
-											borderBottomWidth:
-												index !== selectedExercise.tips.length - 1 ? 1 : 0,
-											borderBottomColor: COLORS.border,
-										}}
-									>
-										<View style={modalStyles.tipNumber}>
-											<Text style={modalStyles.tipNumberText}>{index + 1}</Text>
-										</View>
-										<Text style={modalStyles.tipText}>{tip}</Text>
-									</View>
-								))}
-							</View>
-						</View>
-
-						<View style={modalStyles.spacer} />
-					</View>
-				</ScrollView>
-
-				<View style={modalStyles.fixedBottomButtonContainer}>
-					<TouchableOpacity
-						style={modalStyles.confirmButton}
-						onPress={handleSelectExercise}
-						activeOpacity={0.7}
-					>
-						<Text style={modalStyles.confirmButtonText}>
-							Добавить в тренировку
-						</Text>
-					</TouchableOpacity>
-				</View>
-			</View>
-		)
-	}
-
-	if (!modalVisible) return null
-
-	return (
-		<Modal
-			transparent
-			visible={modalVisible}
-			animationType='none'
-			onRequestClose={onClose}
-		>
-			<View style={modalStyles.modalOverlay}>
-				<TouchableOpacity
-					style={modalStyles.modalBackdrop}
-					activeOpacity={1}
-					onPress={() => {
-						Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
-						onClose()
-					}}
-				/>
-				<Animated.View
-					style={[
-						modalStyles.modalContainer,
-						{ transform: [{ translateY: slideAnim }] },
-					]}
-				>
-					{renderHeader()}
-
-					<View style={modalStyles.content}>
-						{currentScreen === 'groups' && (
-							<>
-								{renderTabs()}
-								{activeTab === 'search' && renderSearch()}
-								{activeTab === 'groups' && renderMuscleGroups()}
-								{activeTab === 'search' && renderExercisesList()}
-							</>
-						)}
-
-						{/* Убран блок subgroups — его больше нет */}
-
-						{currentScreen === 'exercises' && renderExercisesList()}
-
-						{currentScreen === 'detail' && renderExerciseDetail()}
-					</View>
-				</Animated.View>
-			</View>
-		</Modal>
-	)
-}
-
-// ─────────────────────────────────────────────
-// SetRow
-// ─────────────────────────────────────────────
 interface SetRowProps {
 	set: ExerciseSet
 	exerciseId: number
@@ -1045,7 +367,6 @@ const SetRow: React.FC<SetRowProps> = React.memo(
 					style={styles.deleteButton}
 					onPress={() => {
 						Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 						if (set.id) onRemove(exerciseId, set.id)
 					}}
 					activeOpacity={0.6}
@@ -1057,9 +378,6 @@ const SetRow: React.FC<SetRowProps> = React.memo(
 	},
 )
 
-// ─────────────────────────────────────────────
-// ExerciseItem
-// ─────────────────────────────────────────────
 interface ExerciseItemProps {
 	exercise: Exercise
 	onToggleCollapse: (id: number) => void
@@ -1100,7 +418,6 @@ const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
 
 		const handleShowDetails = () => {
 			Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 			const detail = onShowExerciseDetails(exercise.name)
 			setExerciseDetail(detail)
 			setShowDetailsModal(true)
@@ -1113,7 +430,6 @@ const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
 						style={styles.exerciseHeaderLeft}
 						onPress={() => {
 							Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 							if (exercise.id) onToggleCollapse(exercise.id)
 						}}
 						activeOpacity={0.7}
@@ -1162,7 +478,6 @@ const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
 											style={styles.historyButton}
 											onPress={() => {
 												Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 												setShowHistoryModal(true)
 											}}
 											activeOpacity={0.7}
@@ -1179,7 +494,6 @@ const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
 										style={styles.deleteExerciseButton}
 										onPress={() => {
 											Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 											if (exercise.id) {
 												Alert.alert(
 													'Удалить упражнение?',
@@ -1193,7 +507,6 @@ const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
 																Haptics.impactAsync(
 																	Haptics.ImpactFeedbackStyle.Medium,
 																)
-
 																onRemoveExercise(exercise.id!)
 															},
 														},
@@ -1268,7 +581,6 @@ const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
 							style={styles.addSetButton}
 							onPress={() => {
 								Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 								if (exercise.id) {
 									onAddSet(exercise.id)
 								}
@@ -1289,9 +601,6 @@ const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
 	},
 )
 
-// ─────────────────────────────────────────────
-// CreateWorkoutScreen (main)
-// ─────────────────────────────────────────────
 export default function CreateWorkoutScreen() {
 	const router = useRouter()
 	const { completeWorkout } = useDatabase()
@@ -1304,7 +613,81 @@ export default function CreateWorkoutScreen() {
 	const [notes, setNotes] = useState('')
 	const [isSaving, setIsSaving] = useState(false)
 	const [showExerciseSelection, setShowExerciseSelection] = useState(false)
+	const [showTemplateSelection, setShowTemplateSelection] = useState(false)
+	const [showCreateTemplate, setShowCreateTemplate] = useState(false)
+	const [templateInitialData, setTemplateInitialData] =
+		useState<TemplateFormData | null>(null)
 	const [workoutDuration, setWorkoutDuration] = useState(0)
+	const params = useLocalSearchParams()
+
+	const templateId = params.templateId as string | undefined
+	const templateName = params.templateName as string | undefined
+	const templateExercises = params.templateExercises as string | undefined
+
+	const handleSaveAsTemplate = () => {
+		if (exercises.length === 0) {
+			Alert.alert(
+				'Ошибка',
+				'Добавьте хотя бы одно упражнение для создания шаблона',
+			)
+			return
+		}
+
+		const templateExercises: ExerciseFormItem[] = exercises.map((ex, index) => {
+			const avgWeight =
+				ex.sets.length > 0
+					? ex.sets.reduce((sum, set) => sum + set.weight, 0) / ex.sets.length
+					: 0
+
+			return {
+				localId: `template-${Date.now()}-${index}`,
+				name: ex.name,
+				muscle_group: ex.muscleGroup,
+				order_index: index,
+				default_sets: ex.sets.length || 3,
+				default_reps: ex.sets[0]?.reps || 10,
+				default_weight: Math.round(avgWeight * 10) / 10,
+			}
+		})
+
+		setTemplateInitialData({
+			name: workoutName,
+			description: notes,
+			estimatedDuration: formatTime(workoutDuration),
+			exercises: templateExercises,
+		})
+
+		setShowCreateTemplate(true)
+	}
+
+	useEffect(() => {
+		if (templateExercises) {
+			try {
+				const parsedExercises = JSON.parse(templateExercises)
+				setWorkoutName(templateName || 'Моя тренировка')
+
+				const newExercises = parsedExercises.map((ex: any, i: number) => ({
+					id: Date.now() + i,
+					name: ex.name,
+					muscleGroup: ex.muscle_group,
+					sets: Array.from({ length: ex.default_sets || 3 }, (_, j) => ({
+						id: Date.now() + i * 1000 + j,
+						setNumber: j + 1,
+						weight: ex.default_weight > 0 ? ex.default_weight : 0,
+						reps: ex.default_reps || 10,
+						completed: false,
+					})),
+					collapsed: false,
+					order_index: ex.order_index || i,
+				}))
+
+				setExercises(newExercises)
+				startWorkoutTimer()
+			} catch (error) {
+				console.error('Error parsing template exercises:', error)
+			}
+		}
+	}, [templateExercises, templateName])
 
 	useEffect(() => {
 		loadWorkoutState()
@@ -1401,6 +784,37 @@ export default function CreateWorkoutScreen() {
 			console.error('Error stopping workout timer:', error)
 		}
 	}
+
+	const handleTemplateSelect = useCallback(
+		(template: WorkoutTemplate, templateExercises: TemplateExercise[]) => {
+			setWorkoutName(template.name)
+
+			const newExercises = templateExercises.map((ex, i) => ({
+				id: Date.now() + i,
+				name: ex.name,
+				muscleGroup: ex.muscle_group,
+				sets: Array.from({ length: ex.default_sets }, (_, j) => ({
+					id: Date.now() + i * 1000 + j,
+					setNumber: j + 1,
+					weight: ex.default_weight > 0 ? ex.default_weight : undefined,
+					reps: ex.default_reps,
+					completed: false,
+				})),
+				collapsed: false,
+				order_index: ex.order_index,
+			}))
+
+			setExercises(newExercises)
+			startWorkoutTimer()
+			setShowTemplateSelection(false)
+		},
+		[setWorkoutName, setExercises, startWorkoutTimer],
+	)
+
+	const handleStartEmpty = useCallback(() => {
+		setShowTemplateSelection(false)
+		setShowExerciseSelection(true)
+	}, [])
 
 	const { totalCompleted, totalSets, totalVolume } = useMemo(() => {
 		let totalSets = 0
@@ -1601,15 +1015,14 @@ export default function CreateWorkoutScreen() {
 
 							await completeWorkout(workoutData)
 							await stopWorkoutTimer()
-
-							Alert.alert('Успех!', 'Тренировка сохранена в историю', [
-								{ text: 'OK', onPress: () => router.push('/') },
-							])
+							router.push('/')
 						} catch (error) {
 							console.error('Error saving workout:', error)
 							Alert.alert('Ошибка', 'Не удалось сохранить тренировку')
 						} finally {
-							setIsSaving(false)
+							setTimeout(() => {
+								setIsSaving(false)
+							}, 3000)
 						}
 					},
 				},
@@ -1697,7 +1110,7 @@ export default function CreateWorkoutScreen() {
 					style={styles.finishButton}
 					activeOpacity={0.7}
 				>
-					<Text style={styles.finishButtonText}>Готово</Text>
+					<Text style={styles.finishButtonText}>Завершить</Text>
 				</TouchableOpacity>
 			</View>
 
@@ -1760,7 +1173,6 @@ export default function CreateWorkoutScreen() {
 								style={styles.addFirstExerciseButton}
 								onPress={() => {
 									Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 									setShowExerciseSelection(true)
 								}}
 								activeOpacity={0.7}
@@ -1791,7 +1203,6 @@ export default function CreateWorkoutScreen() {
 								style={styles.addExerciseCard}
 								onPress={() => {
 									Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 									setShowExerciseSelection(true)
 								}}
 								activeOpacity={0.7}
@@ -1840,9 +1251,6 @@ export default function CreateWorkoutScreen() {
 	)
 }
 
-// ─────────────────────────────────────────────
-// ExerciseDetailModal
-// ─────────────────────────────────────────────
 interface ExerciseDetailModalProps {
 	visible: boolean
 	onClose: () => void
@@ -1936,7 +1344,6 @@ const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
 					activeOpacity={1}
 					onPress={() => {
 						Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 						onClose()
 					}}
 				/>
@@ -1951,7 +1358,6 @@ const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
 							style={detailModalStyles.backButton}
 							onPress={() => {
 								Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 								onClose()
 							}}
 							activeOpacity={0.7}
@@ -1968,8 +1374,8 @@ const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
 						showsVerticalScrollIndicator={false}
 					>
 						<View style={detailModalStyles.exerciseDetailContent}>
-							<View style={modalStyles.exerciseTitleContainer}>
-								<Text style={modalStyles.exerciseDetailTitle}>
+							<View style={detailModalStyles.exerciseTitleContainer}>
+								<Text style={detailModalStyles.exerciseDetailTitle}>
 									{exerciseDetail.name}
 								</Text>
 							</View>
@@ -2139,9 +1545,6 @@ const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
 	)
 }
 
-// ─────────────────────────────────────────────
-// Styles
-// ─────────────────────────────────────────────
 const detailModalStyles = StyleSheet.create({
 	modalOverlay: {
 		flex: 1,
@@ -2159,7 +1562,7 @@ const detailModalStyles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
-		paddingHorizontal: 16,
+		paddingHorizontal: 8,
 		paddingVertical: 12,
 		backgroundColor: COLORS.card,
 		borderBottomWidth: 1,
@@ -2176,6 +1579,19 @@ const detailModalStyles = StyleSheet.create({
 	},
 	content: { flex: 1 },
 	exerciseDetailContent: { padding: 16 },
+	exerciseTitleContainer: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		marginBottom: 12,
+	},
+	exerciseDetailTitle: {
+		fontSize: 24,
+		fontWeight: 'bold',
+		color: COLORS.text,
+		flex: 1,
+		marginRight: 8,
+	},
 	exerciseImageContainer: {
 		width: '100%',
 		height: 240,
@@ -2183,7 +1599,6 @@ const detailModalStyles = StyleSheet.create({
 		marginBottom: 20,
 	},
 	exerciseMainImage: { width: '100%', height: '100%', borderRadius: 12 },
-	video: { width: '100%', height: 200, borderRadius: 12, marginBottom: 20 },
 	exerciseDetailDescriptionFull: {
 		fontSize: 15,
 		color: COLORS.text,
@@ -2225,7 +1640,6 @@ const detailModalStyles = StyleSheet.create({
 		backgroundColor: COLORS.card,
 		borderRadius: 12,
 		overflow: 'hidden',
-		marginBottom: 16,
 	},
 	muscleGroupItem: { padding: 16 },
 	muscleGroupHeader: {
@@ -2283,345 +1697,76 @@ const detailModalStyles = StyleSheet.create({
 	spacer: { height: 32 },
 })
 
-const modalStyles = StyleSheet.create({
-	modalOverlay: {
-		flex: 1,
-		backgroundColor: '#121212',
-		justifyContent: 'flex-end',
-	},
-	modalBackdrop: { ...StyleSheet.absoluteFillObject },
-	modalContainer: {
-		backgroundColor: '#121212',
-		borderTopLeftRadius: 24,
-		borderTopRightRadius: 24,
-		height: '95%',
-	},
-	header: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-		paddingHorizontal: 16,
-		paddingVertical: 12,
-		backgroundColor: COLORS.card,
-		borderBottomWidth: 1,
-		borderBottomColor: COLORS.border,
-	},
-	backButton: { padding: 8 },
-	headerTitle: {
-		flex: 1,
-		fontSize: 18,
-		fontWeight: '600',
-		color: COLORS.text,
-		textAlign: 'center',
-		marginHorizontal: 8,
-	},
-	headerRight: { width: 40, alignItems: 'flex-end' },
-	content: { flex: 1 },
-	tabsContainer: {
-		flexDirection: 'row',
-		paddingHorizontal: 8,
-		paddingVertical: 8,
-		backgroundColor: COLORS.card,
-		borderBottomWidth: 1,
-		borderBottomColor: COLORS.border,
-	},
-	tab: {
-		flex: 1,
-		alignItems: 'center',
-		paddingVertical: 10,
-		borderRadius: 10,
-		marginHorizontal: 4,
-	},
-	activeTab: { backgroundColor: 'rgba(52, 199, 89, 0.1)' },
-	tabText: {
-		fontSize: 12,
-		color: COLORS.textSecondary,
-		marginTop: 4,
-		fontWeight: '500',
-	},
-	activeTabText: { color: COLORS.primary, fontWeight: '600' },
-	searchContainer: {
-		paddingHorizontal: 16,
-		paddingVertical: 12,
-		backgroundColor: COLORS.card,
-	},
-	searchInner: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		backgroundColor: COLORS.cardLight,
-		borderRadius: 12,
-		paddingHorizontal: 16,
-		paddingVertical: 12,
-	},
-	searchInput: {
-		flex: 1,
-		fontSize: 16,
-		color: COLORS.text,
-		marginLeft: 12,
-		marginRight: 8,
-	},
-	muscleGroupsGrid: { padding: 12, paddingBottom: 24 },
-	columnWrapper: { justifyContent: 'space-between' },
-	muscleGroupCard: {
-		width: (SCREEN_WIDTH - 36) / 2,
-		backgroundColor: COLORS.card,
-		borderRadius: 16,
-		overflow: 'hidden',
-		borderWidth: 1,
-		borderColor: COLORS.border,
-		marginBottom: 12,
-	},
-	muscleGroupImageContainer: {
-		width: '100%',
-		height: 150,
-		padding: 20,
-		position: 'relative',
-	},
-	muscleGroupImage: { width: '100%', height: '100%', resizeMode: 'contain' },
-	muscleGroupName: {
-		fontSize: 16,
-		fontWeight: '600',
-		color: COLORS.text,
-		paddingHorizontal: 12,
-		paddingTop: 12,
-		paddingBottom: 4,
-	},
-	muscleGroupCount: {
-		fontSize: 12,
-		color: COLORS.textSecondary,
-		paddingHorizontal: 12,
-		paddingBottom: 12,
-	},
-	exercisesList: { padding: 8, paddingBottom: 24 },
-	exerciseListItem: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		backgroundColor: COLORS.card,
-		borderRadius: 14,
-		padding: 12,
-		marginBottom: 8,
-		borderWidth: 1,
-		borderColor: COLORS.border,
-	},
-	exerciseListImage: {
-		width: 80,
-		height: 100,
-		borderRadius: 10,
-		marginRight: 12,
-		overflow: 'hidden',
-		position: 'relative',
-	},
-	exerciseListContent: { flex: 1 },
-	exerciseListHeader: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 6,
-	},
-	exerciseListName: {
-		fontSize: 16,
-		fontWeight: '600',
-		color: COLORS.text,
-		flex: 1,
-		marginRight: 8,
-	},
-	exerciseListDescription: {
-		fontSize: 12,
-		color: COLORS.textSecondary,
-		marginBottom: 8,
-		lineHeight: 16,
-	},
-	exerciseListTags: { flexDirection: 'row', gap: 8 },
-	difficultyTag: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		backgroundColor: 'rgba(52, 199, 89, 0.2)',
-		paddingHorizontal: 8,
-		paddingVertical: 4,
-		borderRadius: 6,
-	},
-	difficultyText: {
-		fontSize: 10,
-		color: COLORS.text,
-		fontWeight: '600',
-		marginLeft: 4,
-	},
-	equipmentTag: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		backgroundColor: 'rgba(142, 142, 147, 0.2)',
-		paddingHorizontal: 8,
-		paddingVertical: 4,
-		borderRadius: 6,
-	},
-	equipmentText: {
-		fontSize: 10,
-		color: COLORS.text,
-		fontWeight: '600',
-		marginLeft: 4,
-	},
-	exerciseDetailContainer: { flex: 1, backgroundColor: '#121212' },
-	exerciseImageContainer: { width: '100%', height: 240, position: 'relative' },
-	exerciseMainImage: { width: '100%', height: '100%' },
-	exerciseDetailContent: { padding: 16 },
-	exerciseHeader: { marginBottom: 24 },
-	exerciseTitleContainer: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 12,
-	},
-	exerciseDetailTitle: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		color: COLORS.text,
-		flex: 1,
-		marginRight: 8,
-	},
-	exerciseDetailDescriptionFull: {
-		fontSize: 15,
-		color: COLORS.text,
-		lineHeight: 22,
-		marginBottom: 20,
-	},
-	detailStats: { justifyContent: 'space-between', marginTop: 16 },
-	detailStat: {
-		flex: 1,
-		flexDirection: 'row',
-		alignItems: 'center',
-		backgroundColor: COLORS.card,
-		padding: 12,
-		borderRadius: 12,
-		marginVertical: 4,
-	},
-	detailStatIcon: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
-		backgroundColor: 'rgba(52, 199, 89, 0.1)',
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginRight: 12,
-	},
-	detailStatLabel: {
-		fontSize: 11,
-		color: COLORS.textSecondary,
-		marginBottom: 2,
-	},
-	detailStatValue: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-	section: { marginBottom: 24 },
-	sectionTitle: {
-		fontSize: 18,
-		fontWeight: 'bold',
-		color: COLORS.text,
-		marginBottom: 16,
-	},
-	muscleGroupsGridDetail: {
-		backgroundColor: COLORS.card,
+// ImageGallery component
+const ImageGallery = ({ images }: { images: any[] }) => {
+	const [activeIndex, setActiveIndex] = useState(0)
+
+	const onScroll = (event: any) => {
+		const slideSize = event.nativeEvent.layoutMeasurement.width
+		const index = event.nativeEvent.contentOffset.x / slideSize
+		setActiveIndex(Math.round(index))
+	}
+
+	return (
+		<View style={galleryStyles.container}>
+			<FlatList
+				data={images}
+				horizontal
+				pagingEnabled
+				showsHorizontalScrollIndicator={false}
+				onScroll={onScroll}
+				scrollEventThrottle={16}
+				renderItem={({ item }) => (
+					<View style={galleryStyles.imageContainer}>
+						<Image
+							source={item}
+							style={galleryStyles.image}
+							contentFit='cover'
+							transition={200}
+						/>
+					</View>
+				)}
+				keyExtractor={(_, index) => index.toString()}
+			/>
+			{images.length > 1 && (
+				<View style={galleryStyles.pagination}>
+					{images.map((_, index) => (
+						<View
+							key={index}
+							style={[
+								galleryStyles.dot,
+								index === activeIndex && galleryStyles.activeDot,
+							]}
+						/>
+					))}
+				</View>
+			)}
+		</View>
+	)
+}
+
+const galleryStyles = StyleSheet.create({
+	container: { marginVertical: 16 },
+	imageContainer: {
+		width: SCREEN_WIDTH - 32,
+		height: 200,
 		borderRadius: 12,
 		overflow: 'hidden',
 	},
-	muscleGroupItem: { padding: 16 },
-	muscleGroupHeader: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		marginBottom: 12,
-	},
-	muscleGroupLabel: {
-		fontSize: 14,
-		fontWeight: '600',
-		color: COLORS.text,
-		marginLeft: 8,
-	},
-	muscleItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-	muscleDot: {
-		width: 8,
-		height: 8,
-		borderRadius: 4,
-		backgroundColor: COLORS.primary,
-		marginRight: 12,
-	},
-	muscleText: { fontSize: 14, color: COLORS.text, flex: 1 },
-	muscleDotSecondary: {
+	image: { width: '100%', height: '100%' },
+	pagination: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
+	dot: {
 		width: 8,
 		height: 8,
 		borderRadius: 4,
 		backgroundColor: COLORS.textSecondary,
-		marginRight: 12,
+		marginHorizontal: 4,
 	},
-	muscleTextSecondary: { fontSize: 14, color: COLORS.textSecondary, flex: 1 },
-	tipsList: {
-		backgroundColor: COLORS.card,
-		borderRadius: 12,
-		overflow: 'hidden',
-	},
-	tipItem: { flexDirection: 'row', alignItems: 'flex-start', padding: 16 },
-	tipNumber: {
-		width: 24,
-		height: 24,
-		borderRadius: 12,
-		backgroundColor: COLORS.primary,
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginRight: 12,
-		flexShrink: 0,
-	},
-	tipNumberText: { fontSize: 12, fontWeight: 'bold', color: COLORS.background },
-	tipText: { fontSize: 14, color: COLORS.text, flex: 1, lineHeight: 20 },
-	confirmButton: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'center',
-		backgroundColor: COLORS.primary,
-		paddingHorizontal: 32,
-		paddingVertical: 18,
-		borderRadius: 14,
-		marginBottom: 16,
-		marginTop: 8,
-	},
-	confirmButtonText: {
-		fontSize: 16,
-		fontWeight: 'bold',
-		color: COLORS.card,
-		marginLeft: 8,
-	},
-	spacer: { height: 32 },
-	emptyState: { alignItems: 'center', justifyContent: 'center', padding: 40 },
-	emptyStateTitle: {
-		fontSize: 16,
-		color: COLORS.textSecondary,
-		marginTop: 16,
-		textAlign: 'center',
-		fontWeight: '600',
-	},
-	fixedBottomButtonContainer: {
-		position: 'absolute',
-		bottom: 0,
-		left: 0,
-		right: 0,
-		paddingHorizontal: 16,
-		paddingVertical: 8,
-		backgroundColor: COLORS.card,
-		borderTopWidth: 1,
-		borderTopColor: COLORS.border,
-		zIndex: 10,
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: -3 },
-		shadowOpacity: 0.15,
-		shadowRadius: 8,
-		elevation: 8,
-	},
+	activeDot: { backgroundColor: COLORS.primary },
 })
 
 const styles = StyleSheet.create({
 	infoButton: { padding: 8 },
-	bodyImageContainer: {
-		width: '50%',
-		height: 450,
-		position: 'relative',
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
 	video: { width: '100%', height: 200, marginVertical: 10, borderRadius: 16 },
 	container: { flex: 1, backgroundColor: '#121212' },
 	loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -2639,7 +1784,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
-		paddingHorizontal: 16,
+		paddingHorizontal: 8,
 		paddingVertical: 12,
 		backgroundColor: COLORS.card,
 		borderBottomWidth: 1,
@@ -2656,7 +1801,7 @@ const styles = StyleSheet.create({
 		minWidth: 200,
 	},
 	finishButton: {
-		backgroundColor: COLORS.primary,
+		backgroundColor: COLORS.error,
 		paddingHorizontal: 16,
 		paddingVertical: 8,
 		borderRadius: 8,
@@ -2667,10 +1812,10 @@ const styles = StyleSheet.create({
 		color: COLORS.background,
 	},
 	content: { flex: 1 },
-	contentContainer: { paddingBottom: 100 },
+	contentContainer: { paddingBottom: -40 },
 	statsCard: {
 		backgroundColor: COLORS.card,
-		margin: 16,
+		margin: 8,
 		marginBottom: 0,
 		borderRadius: 16,
 		padding: 20,
@@ -2686,45 +1831,6 @@ const styles = StyleSheet.create({
 		marginBottom: 4,
 	},
 	statLabel: { fontSize: 12, color: COLORS.textSecondary },
-	timerContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-	},
-	timerButton: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'center',
-		backgroundColor: 'rgba(52, 199, 89, 0.1)',
-		paddingHorizontal: 10,
-		paddingVertical: 12,
-		borderRadius: 12,
-		borderWidth: 1,
-		borderColor: COLORS.primary,
-		minWidth: 120,
-	},
-	timerButtonActive: { backgroundColor: COLORS.primary },
-	timerButtonText: {
-		fontSize: 16,
-		fontWeight: '600',
-		color: COLORS.primary,
-		marginLeft: 8,
-	},
-	timerButtonTextActive: { color: COLORS.background },
-	timerDisplay: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		backgroundColor: COLORS.cardLight,
-		paddingHorizontal: 16,
-		paddingVertical: 12,
-		borderRadius: 12,
-	},
-	timerText: {
-		fontSize: 16,
-		fontWeight: '600',
-		color: COLORS.text,
-		marginLeft: 8,
-	},
 	exercisesSection: { marginTop: 8 },
 	sectionHeader: {
 		flexDirection: 'row',
@@ -2737,7 +1843,7 @@ const styles = StyleSheet.create({
 	emptyExercises: {
 		alignItems: 'center',
 		padding: 40,
-		marginHorizontal: 16,
+		marginHorizontal: 8,
 		backgroundColor: COLORS.card,
 		borderRadius: 16,
 		borderWidth: 1,
@@ -2782,7 +1888,7 @@ const styles = StyleSheet.create({
 	},
 	exerciseCard: {
 		backgroundColor: COLORS.card,
-		marginHorizontal: 16,
+		marginHorizontal: 8,
 		marginBottom: 12,
 		borderRadius: 16,
 		padding: 16,
@@ -2795,7 +1901,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		marginBottom: 12,
 	},
-	exerciseHeaderLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+	exerciseHeaderLeft: { flexDirection: 'row', flex: 1 },
 	exerciseInfo: { flex: 1, marginLeft: 12 },
 	exerciseName: {
 		fontSize: 16,
@@ -2922,7 +2028,7 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		backgroundColor: COLORS.card,
 		padding: 16,
-		marginHorizontal: 16,
+		marginHorizontal: 8,
 		marginBottom: 12,
 		borderRadius: 16,
 		borderWidth: 1,
@@ -2945,7 +2051,7 @@ const styles = StyleSheet.create({
 	},
 	notesSection: {
 		backgroundColor: COLORS.card,
-		margin: 16,
+		margin: 8,
 		marginTop: 8,
 		borderRadius: 16,
 		padding: 16,
@@ -2964,77 +2070,5 @@ const styles = StyleSheet.create({
 		marginTop: 8,
 	},
 	spacer: { height: 20 },
-	volumeIndicator: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-	volumeText: { fontSize: 12, color: COLORS.primary, fontWeight: '500' },
 	historyButton: { padding: 8, marginRight: 8 },
-})
-
-// ─────────────────────────────────────────────
-// ImageGallery
-// ─────────────────────────────────────────────
-const ImageGallery = ({ images }: { images: any[] }) => {
-	const [activeIndex, setActiveIndex] = useState(0)
-
-	const onScroll = (event: any) => {
-		const slideSize = event.nativeEvent.layoutMeasurement.width
-		const index = event.nativeEvent.contentOffset.x / slideSize
-		setActiveIndex(Math.round(index))
-	}
-
-	return (
-		<View style={galleryStyles.container}>
-			<FlatList
-				data={images}
-				horizontal
-				pagingEnabled
-				showsHorizontalScrollIndicator={false}
-				onScroll={onScroll}
-				scrollEventThrottle={16}
-				renderItem={({ item }) => (
-					<View style={galleryStyles.imageContainer}>
-						<Image
-							source={item}
-							style={galleryStyles.image}
-							contentFit='cover'
-							transition={200}
-						/>
-					</View>
-				)}
-				keyExtractor={(_, index) => index.toString()}
-			/>
-			{images.length > 1 && (
-				<View style={galleryStyles.pagination}>
-					{images.map((_, index) => (
-						<View
-							key={index}
-							style={[
-								galleryStyles.dot,
-								index === activeIndex && galleryStyles.activeDot,
-							]}
-						/>
-					))}
-				</View>
-			)}
-		</View>
-	)
-}
-
-const galleryStyles = StyleSheet.create({
-	container: { marginVertical: 16 },
-	imageContainer: {
-		width: SCREEN_WIDTH - 32,
-		height: 200,
-		borderRadius: 12,
-		overflow: 'hidden',
-	},
-	image: { width: '100%', height: '100%' },
-	pagination: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
-	dot: {
-		width: 8,
-		height: 8,
-		borderRadius: 4,
-		backgroundColor: COLORS.textSecondary,
-		marginHorizontal: 4,
-	},
-	activeDot: { backgroundColor: COLORS.primary },
 })

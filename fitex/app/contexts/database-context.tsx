@@ -1,4 +1,5 @@
 // contexts/DatabaseContext.tsx
+import { muscle_groups } from '@/constants/muscle-groups'
 import {
 	addActiveExercise,
 	addActiveSet,
@@ -8,8 +9,10 @@ import {
 	BodyMeasurement,
 	completeActiveWorkout,
 	createActiveWorkout,
+	createTemplate,
 	deleteActiveExercise,
 	deleteActiveSet,
+	deleteTemplate,
 	getActiveExercisesFromDb,
 	getActiveSetsFromDb,
 	getActiveWorkouts,
@@ -20,22 +23,31 @@ import {
 	getLatestBodyMeasurements,
 	getPersonalRecords,
 	getRecoveryData,
+	getTemplateById,
+	getTemplates,
 	getUserProfile,
 	getWorkouts,
 	getWorkoutStats,
 	initActiveWorkoutTables,
 	initDatabase,
+	initializeAllMuscles,
+	initTemplatesTables,
 	markAsSynced,
 	openDatabase,
 	PersonalRecord,
+	recalculateAllRecovery,
 	RecoveryData,
 	softDeleteWorkout,
+	TemplateExercise,
 	updateActiveExerciseCollapsed,
 	updateActiveSet,
 	updateActiveWorkout,
+	updateRecoveryAfterWorkout,
+	updateTemplate,
 	UserProfile, // Добавляем импорт
 	Workout,
 	WorkoutStats,
+	WorkoutTemplate,
 } from '@/scripts/database'
 import { api } from '@/services/api'
 import * as Network from 'expo-network'
@@ -60,6 +72,7 @@ interface DatabaseContextType {
 	userProfile: UserProfile | null
 	activeWorkouts: any[]
 	isLoading: boolean
+	templates: WorkoutTemplate[] // ← добавить
 
 	syncWithServer: (isPremium: boolean) => Promise<void>
 
@@ -83,6 +96,24 @@ interface DatabaseContextType {
 
 	performInitialSync: (isPremium: boolean) => Promise<void>
 	syncUnsyncedData: (isPremium: boolean) => Promise<void>
+
+	// Шаблоны
+	refreshTemplates: () => Promise<void>
+	createWorkoutTemplate: (
+		template: Omit<WorkoutTemplate, 'id' | 'created_at' | 'updated_at'>,
+		exercises: Omit<TemplateExercise, 'id' | 'template_id'>[],
+	) => Promise<number>
+	getWorkoutTemplate: (id: number) => Promise<{
+		template: WorkoutTemplate
+		exercises: TemplateExercise[]
+	} | null>
+	editWorkoutTemplate: (
+		id: number,
+		template: Partial<WorkoutTemplate>,
+		exercises?: Omit<TemplateExercise, 'id' | 'template_id'>[],
+	) => Promise<boolean>
+	removeTemplate: (id: number) => Promise<boolean>
+	refreshRecoveryWithRecalc: () => Promise<void>
 
 	// Методы для статистики
 	refreshStats: () => Promise<void>
@@ -133,6 +164,8 @@ const DatabaseContext = createContext<DatabaseContextType | undefined>(
 export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 	children,
 }) => {
+	const [templates, setTemplates] = useState<WorkoutTemplate[]>([])
+
 	const [isInitialized, setIsInitialized] = useState(false)
 	const [workouts, setWorkouts] = useState<Workout[]>([])
 	const [stats, setStats] = useState<WorkoutStats | null>(null)
@@ -154,6 +187,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 			setIsLoading(true)
 			await initDatabase()
 			await initActiveWorkoutTables()
+			await initTemplatesTables()
+			await initializeAllMuscles()
 			setIsInitialized(true)
 		} catch (error) {
 			console.error('Error initializing database:', error)
@@ -735,6 +770,59 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 		[],
 	)
 
+	const refreshTemplates = useCallback(async () => {
+		try {
+			const data = await getTemplates()
+			setTemplates(data)
+		} catch (error) {
+			console.error('Error refreshing templates:', error)
+		}
+	}, [])
+
+	const createWorkoutTemplate = useCallback(
+		async (
+			template: Omit<WorkoutTemplate, 'id' | 'created_at' | 'updated_at'>,
+			exercises: Omit<TemplateExercise, 'id' | 'template_id'>[],
+		) => {
+			const id = await createTemplate(template, exercises)
+			await refreshTemplates()
+			return id
+		},
+		[],
+	)
+
+	const getWorkoutTemplate = useCallback(async (id: number) => {
+		return await getTemplateById(id)
+	}, [])
+
+	const editWorkoutTemplate = useCallback(
+		async (
+			id: number,
+			template: Partial<WorkoutTemplate>,
+			exercises?: Omit<TemplateExercise, 'id' | 'template_id'>[],
+		) => {
+			const result = await updateTemplate(id, template, exercises)
+			await refreshTemplates()
+			return result
+		},
+		[],
+	)
+
+	const removeTemplate = useCallback(async (id: number) => {
+		const result = await deleteTemplate(id)
+		await refreshTemplates()
+		return result
+	}, [])
+
+	/**
+	 * Пересчитать восстановление всех мышц и обновить UI.
+	 * Вызывать при входе на экран Recovery.
+	 */
+	const refreshRecoveryWithRecalc = useCallback(async () => {
+		await recalculateAllRecovery()
+		await refreshRecoveryData()
+	}, [])
+
 	const createNewWorkout = useCallback(async (name: string) => {
 		try {
 			const id = await createActiveWorkout(name)
@@ -746,18 +834,48 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 		}
 	}, [])
 
+	// В DatabaseContext.tsx
 	const completeWorkout = useCallback(
 		async (workoutData: CompleteWorkoutData) => {
 			try {
 				const workoutId = await completeActiveWorkout(workoutData)
+
+				// Получаем детальную информацию об упражнениях для расчета усталости
+				const exercisesWithDetails = workoutData.exercises.map(ex => {
+					// Находим детали упражнения из MUSCLE_GROUPS
+					for (const group of muscle_groups) {
+						for (const subgroup of group.subgroups) {
+							const found = subgroup.exercises.find(e => e.name === ex.name)
+							if (found) {
+								console.log('Found')
+								console.log(found)
+
+								return {
+									...ex,
+									primaryFrontMuscles: found.primaryFrontMuscles,
+									secondaryFrontMuscles: found.secondaryFrontMuscles,
+									primaryBackMuscles: found.primaryBackMuscles,
+									secondaryBackMuscles: found.secondaryBackMuscles,
+								}
+							}
+						}
+					}
+
+					return ex
+				})
+
+				console.log(exercisesWithDetails)
+				// Обновляем восстановление с учетом усталости каждой мышцы
+				await updateRecoveryAfterWorkout(exercisesWithDetails)
 				await refreshAllData()
+
 				return workoutId
 			} catch (error) {
 				console.error('Error completing workout:', error)
 				throw error
 			}
 		},
-		[],
+		[refreshAllData],
 	)
 
 	const getWorkoutDetails = useCallback(async (id: number) => {
@@ -939,6 +1057,14 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({
 		updateWorkout,
 		getWorkoutExercises,
 		getExerciseSets,
+
+		templates,
+		refreshTemplates,
+		createWorkoutTemplate,
+		getWorkoutTemplate,
+		editWorkoutTemplate,
+		removeTemplate,
+		refreshRecoveryWithRecalc,
 
 		refreshStats,
 		refreshPersonalRecords,

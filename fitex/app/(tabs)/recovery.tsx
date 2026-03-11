@@ -4,12 +4,12 @@ import {
 	manBackMuscleGroupParts,
 	manFrontMuscleGroupParts,
 } from '@/constants/images'
-import { Image } from 'expo-image'
-import { useRef, useState } from 'react'
+import { formatDate } from '@/scripts/database'
+import { useFocusEffect } from 'expo-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
 	Animated,
 	Dimensions,
-	FlatList,
 	ScrollView,
 	StyleSheet,
 	Text,
@@ -17,17 +17,114 @@ import {
 	View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useDatabase } from '../contexts/database-context'
 
 const { width } = Dimensions.get('window')
 
-const MUSCLE_FRONT_DATA = [
+const COLORS = {
+	primary: '#34C759',
+	primaryDark: '#2CAE4E',
+	background: '#000',
+	card: '#1C1C1E',
+	cardLight: '#2C2C2E',
+	border: '#3A3A3C',
+	text: '#FFFFFF',
+	textSecondary: '#8E8E93',
+	error: '#FF3B30',
+	warning: '#FF9500',
+	success: '#34C759',
+} as const
+
+const STATUS_COLORS = {
+	recovered: '#34C759',
+	recovering: '#FF9500',
+	needs_rest: '#FF3B30',
+	not_trained: '#3A3A3C',
+} as const
+
+const STATUS_BG = {
+	recovered: 'rgba(52, 199, 89, 0.1)',
+	recovering: 'rgba(255, 149, 0, 0.1)',
+	needs_rest: 'rgba(255, 59, 48, 0.1)',
+	not_trained: 'rgba(58, 58, 60, 0.3)',
+} as const
+
+const MUSCLE_IMAGE_TO_NAME_MAP: { [key: string]: string } = {
+	leftPectoralisMajor: 'Грудь',
+	rightPectoralisMajor: 'Грудь',
+	leftPectoralisMinor: 'Грудь',
+	rightPectoralisMinor: 'Грудь',
+	rightSerratusAnterior: 'Грудь',
+	leftSerratusAnterior: 'Грудь',
+	upperAbs: 'Пресс',
+	lowerAbs: 'Пресс',
+	upperMiddleAbs: 'Пресс',
+	lowerMiddleAbs: 'Пресс',
+	leftExternalOblique: 'Пресс',
+	rightExternalOblique: 'Пресс',
+	leftInternalOblique: 'Пресс',
+	rightInternalOblique: 'Пресс',
+	leftTransversusAbdominis: 'Пресс',
+	rightTransversusAbdominis: 'Пресс',
+	leftLongBiceps: 'Бицепс',
+	rightLongBiceps: 'Бицепс',
+	leftShortBiceps: 'Бицепс',
+	rightShortBiceps: 'Бицепс',
+	leftFrontDeltoid: 'Плечи',
+	rightFrontDeltoid: 'Плечи',
+	leftMiddleDeltoid: 'Плечи',
+	rightMiddleDeltoid: 'Плечи',
+	leftRearDeltoid: 'Плечи',
+	rightRearDeltoid: 'Плечи',
+	leftUpperTrapezius: 'Трапеции',
+	rightUpperTrapezius: 'Трапеции',
+	leftLowerTrapezius: 'Трапеции',
+	rightLowerTrapezius: 'Трапеции',
+	leftVastusLateralis: 'Ноги',
+	rightVastusLateralis: 'Ноги',
+	leftVastusMedialis: 'Ноги',
+	rightVastusMedialis: 'Ноги',
+	leftVastusInternedius: 'Ноги',
+	rightVastusInternedius: 'Ноги',
+	leftGastrocnemius: 'Ноги',
+	rightGastrocnemius: 'Ноги',
+	leftTibialisAnterior: 'Ноги',
+	rightTibialisAnterior: 'Ноги',
+	leftBiceosFemoris: 'Ноги',
+	rightBiceosFemoris: 'Ноги',
+	leftSemitendinosus: 'Ноги',
+	rightSemitendinosus: 'Ноги',
+	leftGluteusMaximus: 'Ягодицы',
+	rightGluteusMaximus: 'Ягодицы',
+	leftGluteusMedius: 'Ягодицы',
+	rightGluteusMedius: 'Ягодицы',
+	leftIntraspinatus: 'Спина',
+	rightIntraspinatus: 'Спина',
+	leftLatissimusDorsi: 'Спина',
+	rightLatissimusDorsi: 'Спина',
+	leftThoracolumbarFascia: 'Спина',
+	rightThoracolumbarFascia: 'Спина',
+	rightExtensorDigitorum: 'Предплечья',
+	leftExtensorDigitorum: 'Предплечья',
+	rightExtensorCarpiUharis: 'Предплечья',
+	leftExtensorCarpiUharis: 'Предплечья',
+	rightExtensorCarpiRadialis: 'Предплечья',
+	leftExtensorCarpiRadialis: 'Предплечья',
+	leftFlexorDigitorumProfundus: 'Предплечья',
+	leftFlexorPollicisLongus: 'Предплечья',
+	rightFlexorDigitorumProfundus: 'Предплечья',
+	rightFlexorPollicisLongus: 'Предплечья',
+	leftTriceps: 'Трицепс',
+	rightTriceps: 'Трицепс',
+	leftScalenes: 'Шея',
+	rightScalenes: 'Шея',
+}
+
+const MUSCLE_FRONT_CONFIG = [
 	{
 		id: '1',
 		name: 'Грудь',
-		status: 'recovering',
-		recovery: 65,
-		color: '#FF6B6B',
-		lastTrained: '2 дня назад',
+		position: { left: '-100%', top: '-150%' },
 		muscleImages: [
 			'leftPectoralisMajor',
 			'rightPectoralisMajor',
@@ -41,10 +138,7 @@ const MUSCLE_FRONT_DATA = [
 	{
 		id: '2',
 		name: 'Пресс',
-		status: 'recovered',
-		recovery: 100,
-		color: '#4ECDC4',
-		lastTrained: '4 дня назад',
+		position: { left: '-100%', top: '-210%' },
 		muscleImages: [
 			'upperAbs',
 			'lowerAbs',
@@ -62,10 +156,7 @@ const MUSCLE_FRONT_DATA = [
 	{
 		id: '3',
 		name: 'Бицепс',
-		status: 'recovering',
-		recovery: 80,
-		color: '#45B7D1',
-		lastTrained: '3 дня назад',
+		position: { left: '-70%', top: '-180%' },
 		muscleImages: [
 			'leftLongBiceps',
 			'rightLongBiceps',
@@ -77,10 +168,7 @@ const MUSCLE_FRONT_DATA = [
 	{
 		id: '4',
 		name: 'Плечи',
-		status: 'recovered',
-		recovery: 100,
-		color: '#96CEB4',
-		lastTrained: '5 дней назад',
+		position: { left: '-70%', top: '-160%' },
 		muscleImages: [
 			'leftFrontDeltoid',
 			'rightFrontDeltoid',
@@ -92,20 +180,14 @@ const MUSCLE_FRONT_DATA = [
 	{
 		id: '5',
 		name: 'Трапеции',
-		status: 'recovered',
-		recovery: 100,
-		color: '#96CEB4',
-		lastTrained: '5 дней назад',
+		position: { left: '-100%', top: '-150%' },
 		muscleImages: ['leftUpperTrapezius', 'rightUpperTrapezius'],
 		icon: manFrontMuscleGroupParts.rectoralFull,
 	},
 	{
 		id: '6',
 		name: 'Ноги',
-		status: 'needs_rest',
-		recovery: 25,
-		color: '#FFEAA7',
-		lastTrained: '1 день назад',
+		position: { left: '-100%', top: '-260%' },
 		muscleImages: [
 			'leftVastusLateralis',
 			'rightVastusLateralis',
@@ -125,10 +207,7 @@ const MUSCLE_FRONT_DATA = [
 	{
 		id: '7',
 		name: 'Предплечья',
-		status: 'needs_rest',
-		recovery: 25,
-		color: '#FFEAA7',
-		lastTrained: '1 день назад',
+		position: { left: '-100%', top: '-230%' },
 		muscleImages: [
 			'rightExtensorDigitorum',
 			'leftExtensorDigitorum',
@@ -142,23 +221,17 @@ const MUSCLE_FRONT_DATA = [
 	{
 		id: '8',
 		name: 'Шея',
-		status: 'recovered',
-		recovery: 100,
-		color: '#96CEB4',
-		lastTrained: '5 дней назад',
+		position: { left: '-100%', top: '-150%' },
 		muscleImages: ['leftScalenes', 'rightScalenes'],
 		icon: manFrontMuscleGroupParts.rectoralFull,
 	},
 ]
 
-const MUSCLE_BACK_DATA = [
+const MUSCLE_BACK_CONFIG = [
 	{
 		id: '1',
 		name: 'Ноги',
-		status: 'recovering',
-		recovery: 65,
-		color: '#FF6B6B',
-		lastTrained: '2 дня назад',
+		position: { left: '-100%', top: '-280%' },
 		muscleImages: [
 			'leftBiceosFemoris',
 			'leftGastrocnemius',
@@ -172,25 +245,19 @@ const MUSCLE_BACK_DATA = [
 	{
 		id: '2',
 		name: 'Предплечья',
-		status: 'recovered',
-		recovery: 100,
-		color: '#4ECDC4',
-		lastTrained: '4 дня назад',
+		position: { left: '-100%', top: '-220%' },
 		muscleImages: [
 			'leftFlexorDigitorumProfundus',
 			'leftFlexorPollicisLongus',
 			'rightFlexorDigitorumProfundus',
 			'rightFlexorPollicisLongus',
 		],
-		icon: manBackMuscleGroupParts.internalOblique, // ← наиболее близко к прессу (косые)
+		icon: manBackMuscleGroupParts.internalOblique,
 	},
 	{
 		id: '3',
 		name: 'Ягодицы',
-		status: 'recovering',
-		recovery: 80,
-		color: '#45B7D1',
-		lastTrained: '3 дня назад',
+		position: { left: '-100%', top: '-240%' },
 		muscleImages: [
 			'leftGluteusMaximus',
 			'leftGluteusMedius',
@@ -199,15 +266,12 @@ const MUSCLE_BACK_DATA = [
 			'rightGluteusMedius',
 			'rightInternalOblique',
 		],
-		icon: manBackMuscleGroupParts.forearmFull, // ← часто бицепс рисуют вместе с предплечьем на таких схемах
+		icon: manBackMuscleGroupParts.forearmFull,
 	},
 	{
 		id: '4',
 		name: 'Спина',
-		status: 'recovered',
-		recovery: 100,
-		color: '#96CEB4',
-		lastTrained: '5 дней назад',
+		position: { left: '-100%', top: '-180%' },
 		muscleImages: [
 			'leftIntraspinatus',
 			'leftLatissimusDorsi',
@@ -216,332 +280,672 @@ const MUSCLE_BACK_DATA = [
 			'rightLatissimusDorsi',
 			'rightThoracolumbarFascia',
 		],
-		icon: manBackMuscleGroupParts.deltoidFull, // ← detroid → дельтовидные (плечи)
+		icon: manBackMuscleGroupParts.deltoidFull,
 	},
 	{
 		id: '5',
 		name: 'Трапеции',
-		status: 'recovered',
-		recovery: 100,
-		color: '#96CEB4',
-		lastTrained: '5 дней назад',
+		position: { left: '-100%', top: '-150%' },
 		muscleImages: [
 			'leftLowerTrapezius',
 			'leftUpperTrapezius',
 			'rightLowerTrapezius',
 			'rightUpperTrapezius',
 		],
-		icon: manBackMuscleGroupParts.trapeziusFull, // ← идеально подходит
+		icon: manBackMuscleGroupParts.trapeziusFull,
 	},
 	{
 		id: '6',
 		name: 'Плечи',
-		status: 'needs_rest',
-		recovery: 25,
-		color: '#FFEAA7',
-		lastTrained: '1 день назад',
+		position: { left: '-70%', top: '-150%' },
 		muscleImages: ['leftRearDeltoid', 'rightRearDeltoid'],
-		icon: manBackMuscleGroupParts.upperLegFull, // ← ноги (верхняя часть) + ягодицы
+		icon: manBackMuscleGroupParts.upperLegFull,
 	},
-
 	{
 		id: '7',
 		name: 'Трицепс',
-		status: 'needs_rest',
-		recovery: 25,
-		color: '#FFEAA7',
-		lastTrained: '1 день назад',
+		position: { left: '-100%', top: '-200%' },
 		muscleImages: ['leftTriceps', 'rightTriceps'],
-		icon: manBackMuscleGroupParts.triceps, // ← идеально для предплечий
+		icon: manBackMuscleGroupParts.triceps,
 	},
 ]
 
+// ─────────────────────────────────────────────
+// Shimmer
+// ─────────────────────────────────────────────
+const useShimmer = () => {
+	const anim = useRef(new Animated.Value(0)).current
+	useEffect(() => {
+		const loop = Animated.loop(
+			Animated.sequence([
+				Animated.timing(anim, {
+					toValue: 1,
+					duration: 750,
+					useNativeDriver: true,
+				}),
+				Animated.timing(anim, {
+					toValue: 0,
+					duration: 750,
+					useNativeDriver: true,
+				}),
+			]),
+		)
+		loop.start()
+		return () => loop.stop()
+	}, [])
+	return anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] })
+}
+
+const ShimmerBlock = ({ style }: { style: any }) => {
+	const opacity = useShimmer()
+	return <Animated.View style={[style, { opacity }]} />
+}
+
+// ─────────────────────────────────────────────
+// FadeIn
+// ─────────────────────────────────────────────
+const FadeIn = ({
+	show,
+	children,
+}: {
+	show: boolean
+	children: React.ReactNode
+}) => {
+	const anim = useRef(new Animated.Value(0)).current
+	useEffect(() => {
+		if (show) {
+			Animated.timing(anim, {
+				toValue: 1,
+				duration: 300,
+				useNativeDriver: true,
+			}).start()
+		}
+	}, [show])
+	return (
+		<Animated.View style={{ opacity: anim, flexGrow: 1 }}>
+			{children}
+		</Animated.View>
+	)
+}
+
+// ─────────────────────────────────────────────
+// Скелетоны
+// ─────────────────────────────────────────────
+const StatCardSkeleton = () => (
+	<View
+		style={[
+			styles.statCard,
+			{
+				flex: 1,
+				backgroundColor: COLORS.cardLight + '44',
+				borderColor: COLORS.border,
+			},
+		]}
+	>
+		<ShimmerBlock
+			style={{
+				height: 28,
+				width: 36,
+				borderRadius: 6,
+				backgroundColor: COLORS.cardLight,
+				marginBottom: 6,
+			}}
+		/>
+		<ShimmerBlock
+			style={{
+				height: 12,
+				width: 44,
+				borderRadius: 4,
+				backgroundColor: COLORS.cardLight,
+			}}
+		/>
+	</View>
+)
+
+const DiagramSkeleton = () => (
+	<View style={[styles.diagramCard, { gap: 16 }]}>
+		<ShimmerBlock
+			style={{
+				height: 20,
+				width: 120,
+				borderRadius: 6,
+				backgroundColor: COLORS.cardLight,
+				alignSelf: 'flex-start',
+			}}
+		/>
+		<View style={styles.svgRow}>
+			<View style={styles.svgHalf}>
+				<ShimmerBlock
+					style={{
+						width: '75%',
+						height: 380,
+						borderRadius: 16,
+						backgroundColor: COLORS.cardLight,
+					}}
+				/>
+			</View>
+			<View style={styles.svgDivider} />
+			<View style={styles.svgHalf}>
+				<ShimmerBlock
+					style={{
+						width: '75%',
+						height: 380,
+						borderRadius: 16,
+						backgroundColor: COLORS.cardLight,
+					}}
+				/>
+			</View>
+		</View>
+		<View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
+			{[100, 130, 80].map((w, i) => (
+				<ShimmerBlock
+					key={i}
+					style={{
+						height: 28,
+						width: w,
+						borderRadius: 20,
+						backgroundColor: COLORS.cardLight,
+					}}
+				/>
+			))}
+		</View>
+	</View>
+)
+
+const MuscleCardSkeleton = () => (
+	<View style={[styles.muscleCard, { marginBottom: 6 }]}>
+		<View
+			style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 12 }}
+		>
+			<ShimmerBlock
+				style={[styles.cardIconWrap, { backgroundColor: COLORS.cardLight }]}
+			/>
+		</View>
+		<View style={styles.cardBody}>
+			<ShimmerBlock
+				style={{
+					height: 15,
+					width: 80,
+					borderRadius: 4,
+					backgroundColor: COLORS.cardLight,
+					marginBottom: 6,
+				}}
+			/>
+			<ShimmerBlock
+				style={{
+					height: 12,
+					width: 110,
+					borderRadius: 4,
+					backgroundColor: COLORS.cardLight,
+				}}
+			/>
+		</View>
+		<ShimmerBlock
+			style={{
+				height: 32,
+				width: 58,
+				borderRadius: 10,
+				backgroundColor: COLORS.cardLight,
+			}}
+		/>
+	</View>
+)
+
+// ─────────────────────────────────────────────
+// Разделитель секций
+// ─────────────────────────────────────────────
+const SectionLabel = ({ label }: { label: string }) => (
+	<View style={styles.sectionLabelRow}>
+		<View style={styles.sectionLabelLine} />
+		<Text style={styles.sectionLabelText}>{label}</Text>
+		<View style={styles.sectionLabelLine} />
+	</View>
+)
+
+// ─────────────────────────────────────────────
+// Карточка мышцы
+// ─────────────────────────────────────────────
+type MuscleConfig = (typeof MUSCLE_FRONT_CONFIG)[0]
+
+type MuscleCardProps = {
+	muscle: MuscleConfig
+	side: 'front' | 'back'
+	isSelected: boolean
+	liveStats: { status: string; recovery: number; lastTrained: string }
+	allFrontImages: string[]
+	allBackImages: string[]
+}
+
+const MuscleCard = ({
+	muscle,
+	side,
+	isSelected,
+	liveStats,
+	allFrontImages,
+	allBackImages,
+}: MuscleCardProps) => {
+	const liveColor =
+		STATUS_COLORS[liveStats.status as keyof typeof STATUS_COLORS] ??
+		STATUS_COLORS.not_trained
+	const liveBg =
+		STATUS_BG[liveStats.status as keyof typeof STATUS_BG] ??
+		STATUS_BG.not_trained
+
+	const allImages = side === 'front' ? allFrontImages : allBackImages
+	const svgColors: { [key: string]: string } = {}
+	allImages.forEach(key => {
+		svgColors[key] = 'rgba(58,58,60,0.25)'
+	})
+	muscle.muscleImages.forEach(key => {
+		svgColors[key] = liveColor
+	})
+
+	return (
+		<TouchableOpacity
+			style={[
+				styles.muscleCard,
+				isSelected && { borderColor: liveColor, backgroundColor: liveBg },
+			]}
+			activeOpacity={0.7}
+		>
+			<View
+				style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 12 }}
+			>
+				<View style={[styles.cardIconWrap, { backgroundColor: COLORS.card }]}>
+					<View
+						style={{
+							...styles.cardSvgContainer,
+							position: 'absolute',
+							left: muscle.position.left as any,
+							top: muscle.position.top as any,
+						}}
+						pointerEvents='none'
+					>
+						{side === 'front' ? (
+							<ManFrontSvg height={300} width={150} muscleColors={svgColors} />
+						) : (
+							<ManBackSvg height={300} width={150} muscleColors={svgColors} />
+						)}
+					</View>
+				</View>
+			</View>
+
+			<View style={styles.cardBody}>
+				<Text style={styles.cardName}>{muscle.name}</Text>
+				<Text style={styles.cardDate} numberOfLines={1}>
+					{liveStats.lastTrained !== 'Нет данных'
+						? `Последняя: ${liveStats.lastTrained}`
+						: 'Нет данных'}
+				</Text>
+			</View>
+
+			<View style={[styles.cardBadge, { backgroundColor: liveBg }]}>
+				<View style={[styles.cardBadgeDot, { backgroundColor: liveColor }]} />
+				<Text style={[styles.cardBadgeText, { color: liveColor }]}>
+					{liveStats.recovery}%
+				</Text>
+			</View>
+		</TouchableOpacity>
+	)
+}
+
+// ─────────────────────────────────────────────
+// Основной компонент
+// ─────────────────────────────────────────────
 export default function RecoveryTab() {
 	const [muscleSide, setMuscleSide] = useState<string | null>(null)
 	const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null)
-	const scrollX = useRef(new Animated.Value(0)).current
-	const flatListRef = useRef<FlatList>(null)
+	const [loading, setLoading] = useState(true)
 
-	const getStatusColor = (status: string) => {
-		switch (status) {
-			case 'recovered':
-				return '#1fc448ff'
-			case 'recovering':
-				return '#ffcc00ff'
-			case 'needs_rest':
-				return '#cd1f16ff'
-			default:
-				return '#8E8E93'
-		}
-	}
+	const { recoveryData, refreshRecoveryWithRecalc } = useDatabase()
 
-	const getTintColor = (status: string) => {
-		switch (status) {
-			case 'recovered':
-				return 'rgba(0, 255, 64, 0.7)'
-			case 'recovering':
-				return 'rgba(255, 204, 0, 1)'
-			case 'needs_rest':
-				return 'rgba(255, 13, 0, 0.7)'
-			default:
-				return 'rgba(142, 142, 147, 0.7)'
+	const hasData = recoveryData.length > 0
+
+	// Stale-while-revalidate: если данные уже есть — обновляем тихо без скелетонов
+	useFocusEffect(
+		useCallback(() => {
+			if (!hasData) {
+				setLoading(true)
+			}
+			refreshRecoveryWithRecalc()
+		}, [hasData]),
+	)
+
+	// Убираем скелетон как только данные появились — плавно
+	useEffect(() => {
+		if (hasData && loading) {
+			const timer = setTimeout(() => setLoading(false), 300)
+			return () => clearTimeout(timer)
 		}
-	}
+	}, [hasData, loading])
+
+	const getMuscleGroupStats = useCallback(
+		(
+			muscleImages: string[],
+			muscleName: string,
+		): { status: string; recovery: number; lastTrained: string } => {
+			const matchedById = muscleImages
+				.map(imgKey =>
+					recoveryData.find(
+						r => r.muscle_id?.toLowerCase() === imgKey.toLowerCase(),
+					),
+				)
+				.filter(Boolean) as typeof recoveryData
+
+			const matched =
+				matchedById.length > 0
+					? matchedById
+					: recoveryData.filter(
+							r => r.muscle_name?.toLowerCase() === muscleName.toLowerCase(),
+						)
+
+			if (matched.length === 0)
+				return { status: 'not_trained', recovery: 0, lastTrained: 'Нет данных' }
+
+			const avgRecovery = Math.round(
+				matched.reduce((sum, r) => sum + (r.recovery ?? 0), 0) / matched.length,
+			)
+			const hasRest = matched.some(r => r.status === 'needs_rest')
+			const allRecovered = matched.every(r => r.status === 'recovered')
+			const status = hasRest
+				? 'needs_rest'
+				: allRecovered
+					? 'recovered'
+					: 'recovering'
+
+			const lastDates = matched
+				.map(r => r.last_trained)
+				.filter(Boolean) as string[]
+			const lastTrained =
+				lastDates.length > 0
+					? formatDate(lastDates.sort().reverse()[0])
+					: 'Нет данных'
+
+			return { status, recovery: avgRecovery, lastTrained }
+		},
+		[recoveryData],
+	)
+
+	const frontDataWithStats = useMemo(
+		() =>
+			MUSCLE_FRONT_CONFIG.map(m => ({
+				...m,
+				stats: getMuscleGroupStats(m.muscleImages, m.name),
+			})),
+		[getMuscleGroupStats],
+	)
+
+	const backDataWithStats = useMemo(
+		() =>
+			MUSCLE_BACK_CONFIG.map(m => ({
+				...m,
+				stats: getMuscleGroupStats(m.muscleImages, m.name),
+			})),
+		[getMuscleGroupStats],
+	)
+
+	const allFrontImages = useMemo(
+		() => MUSCLE_FRONT_CONFIG.flatMap(m => m.muscleImages),
+		[],
+	)
+	const allBackImages = useMemo(
+		() => MUSCLE_BACK_CONFIG.flatMap(m => m.muscleImages),
+		[],
+	)
+
+	const getColorByStatus = useCallback(
+		(status: string | undefined, opacity: number = 1): string => {
+			const baseColor = (() => {
+				switch (status) {
+					case 'recovered':
+						return STATUS_COLORS.recovered
+					case 'recovering':
+						return STATUS_COLORS.recovering
+					case 'needs_rest':
+						return STATUS_COLORS.needs_rest
+					default:
+						return STATUS_COLORS.not_trained
+				}
+			})()
+			if (opacity >= 1) return baseColor
+			const hex = baseColor.replace('#', '')
+			const r = parseInt(hex.substring(0, 2), 16)
+			const g = parseInt(hex.substring(2, 4), 16)
+			const b = parseInt(hex.substring(4, 6), 16)
+			return `rgba(${r}, ${g}, ${b}, ${opacity})`
+		},
+		[],
+	)
+
+	const getFrontMuscleColors = useCallback(() => {
+		const muscleColors: { [key: string]: string } = {}
+		MUSCLE_FRONT_CONFIG.forEach(muscle => {
+			muscle.muscleImages.forEach(imageKey => {
+				const record = recoveryData.find(
+					r => r.muscle_id.toLowerCase() === imageKey.toLowerCase(),
+				)
+				let opacity = 0.7
+				if (selectedMuscle && muscleSide === 'front')
+					opacity = selectedMuscle === muscle.id ? 0.9 : 0.2
+				muscleColors[imageKey] = getColorByStatus(record?.status, opacity)
+			})
+		})
+		return muscleColors
+	}, [recoveryData, selectedMuscle, muscleSide, getColorByStatus])
+
+	const getBackMuscleColors = useCallback(() => {
+		const muscleColors: { [key: string]: string } = {}
+		MUSCLE_BACK_CONFIG.forEach(muscle => {
+			muscle.muscleImages.forEach(imageKey => {
+				const record = recoveryData.find(
+					r => r.muscle_id.toLowerCase() === imageKey.toLowerCase(),
+				)
+				let opacity = 0.7
+				if (selectedMuscle && muscleSide === 'back')
+					opacity = selectedMuscle === muscle.id ? 0.9 : 0.2
+				muscleColors[imageKey] = getColorByStatus(record?.status, opacity)
+			})
+		})
+		return muscleColors
+	}, [recoveryData, selectedMuscle, muscleSide, getColorByStatus])
 
 	const handleMuscleSelect = (muscleId: string, type: string) => {
 		setMuscleSide(type)
 		setSelectedMuscle(selectedMuscle === muscleId ? null : muscleId)
 	}
 
-	const getFrontMuscleColors = () => {
-		const muscleColors: { [key: string]: string } = {}
-
-		if (selectedMuscle && muscleSide == 'front') {
-			const muscle = MUSCLE_FRONT_DATA.find(m => m.id === selectedMuscle)
-			if (muscle) {
-				muscle.muscleImages.forEach(imageKey => {
-					muscleColors[imageKey] = getTintColor(muscle.status)
-				})
-			}
-		} else {
-			MUSCLE_FRONT_DATA.forEach(muscle => {
-				muscle.muscleImages.forEach(imageKey => {
-					muscleColors[imageKey] = getTintColor(muscle.status)
-				})
-			})
-		}
-
-		return muscleColors
-	}
-
-	const getBackMuscleColors = () => {
-		const muscleColors: { [key: string]: string } = {}
-
-		if (selectedMuscle && muscleSide == 'back') {
-			const muscle = MUSCLE_BACK_DATA.find(m => m.id === selectedMuscle)
-			if (muscle) {
-				muscle.muscleImages.forEach(imageKey => {
-					muscleColors[imageKey] = getTintColor(muscle.status)
-				})
-			}
-		} else {
-			MUSCLE_BACK_DATA.forEach(muscle => {
-				muscle.muscleImages.forEach(imageKey => {
-					muscleColors[imageKey] = getTintColor(muscle.status)
-				})
-			})
-		}
-
-		return muscleColors
-	}
-
-	const renderModelTab = () => (
-		<View style={styles.tabContainer}>
-			<View style={styles.diagramContainer}>
-				<Text style={styles.sectionTitle}>Статус мышц</Text>
-				<View
-					style={{
-						flexDirection: 'row',
-					}}
-				>
-					<View style={styles.bodyImageContainer}>
-						<ManBackSvg muscleColors={getBackMuscleColors()} />
-					</View>
-					<View style={styles.bodyImageContainer}>
-						<ManFrontSvg muscleColors={getFrontMuscleColors()} />
-					</View>
-				</View>
-				<TouchableOpacity
-					style={styles.toggleButton}
-					onPress={() => setSelectedMuscle(null)}
-				>
-					<Text style={styles.toggleButtonText}>
-						{selectedMuscle ? 'Показать все мышцы' : 'Смотреть все'}
-					</Text>
-				</TouchableOpacity>
-
-				<View style={styles.legend}>
-					<View style={styles.legendItem}>
-						<View
-							style={[styles.legendColor, { backgroundColor: '#34C759' }]}
-						/>
-						<Text style={styles.legendText}>Восстановлено</Text>
-					</View>
-					<View style={{ ...styles.legendItem }}>
-						<View
-							style={[styles.legendColor, { backgroundColor: '#FFCC00' }]}
-						/>
-						<Text style={styles.legendText}>Восстанавливается</Text>
-					</View>
-					<View style={styles.legendItem}>
-						<View
-							style={[styles.legendColor, { backgroundColor: '#FF3B30' }]}
-						/>
-						<Text style={styles.legendText}>Требует отдыха</Text>
-					</View>
-				</View>
-
-				<View style={{ width: width - 20 }}>
-					<View>
-						<View
-							style={{
-								paddingHorizontal: 10,
-								marginTop: 10,
-								width: width - 20,
-							}}
-						>
-							<Text style={styles.muscleName}>Front</Text>
-						</View>
-
-						<FlatList
-							data={MUSCLE_FRONT_DATA}
-							keyExtractor={item => item.id.toString()}
-							numColumns={1} // или 3, если хочешь больше колонок
-							contentContainerStyle={styles.gridContainer}
-							scrollEnabled={false}
-							renderItem={({ item: muscle }) => (
-								<TouchableOpacity
-									style={[
-										styles.muscleItemGrid,
-										selectedMuscle === muscle.id &&
-											muscleSide == 'front' &&
-											styles.selectedMuscleItemGrid,
-									]}
-									onPress={() => handleMuscleSelect(muscle.id, 'front')}
-								>
-									<View style={styles.muscleInfo}>
-										<View style={[styles.muscleIcon]}>
-											<Image
-												transition={200}
-												style={styles.bodyBackground}
-												source={muscle.icon}
-												resizeMode='contain'
-											/>
-										</View>
-
-										<View style={styles.muscleTextContainer}>
-											<Text style={styles.muscleName} numberOfLines={1}>
-												{muscle.name}
-											</Text>
-											<Text style={styles.lastTrained} numberOfLines={1}>
-												{muscle.lastTrained}
-											</Text>
-										</View>
-
-										<View
-											style={{
-												borderRadius: 10,
-												padding: 5,
-												backgroundColor: getStatusColor(muscle.status),
-											}}
-										>
-											<Text style={{ color: '#fff' }}>{muscle.recovery}%</Text>
-										</View>
-									</View>
-								</TouchableOpacity>
-							)}
-						/>
-					</View>
-
-					<View
-						style={{
-							paddingHorizontal: 10,
-							marginTop: 10,
-							width: width - 20,
-						}}
-					>
-						<Text style={styles.muscleName}>Back</Text>
-					</View>
-
-					<FlatList
-						data={MUSCLE_BACK_DATA}
-						keyExtractor={item => item.id.toString()}
-						numColumns={1} // или 3, если хочешь больше колонок
-						contentContainerStyle={styles.gridContainer}
-						scrollEnabled={false}
-						renderItem={({ item: muscle }) => (
-							<TouchableOpacity
-								style={[
-									styles.muscleItemGrid,
-									selectedMuscle === muscle.id &&
-										muscleSide == 'back' &&
-										styles.selectedMuscleItemGrid,
-								]}
-								onPress={() => handleMuscleSelect(muscle.id, 'back')}
-							>
-								<View style={styles.muscleInfo}>
-									<View style={[styles.muscleIcon]}>
-										<Image
-											transition={200}
-											style={styles.bodyBackground}
-											source={muscle.icon}
-											resizeMode='contain'
-										/>
-									</View>
-
-									<View style={styles.muscleTextContainer}>
-										<Text style={styles.muscleName} numberOfLines={1}>
-											{muscle.name}
-										</Text>
-										<Text style={styles.lastTrained} numberOfLines={1}>
-											{muscle.lastTrained}
-										</Text>
-									</View>
-
-									<View
-										style={{
-											borderRadius: 10,
-											padding: 5,
-											backgroundColor: getStatusColor(muscle.status),
-										}}
-									>
-										<Text style={{ color: '#fff' }}>{muscle.recovery}%</Text>
-									</View>
-								</View>
-							</TouchableOpacity>
-						)}
-					/>
-				</View>
-			</View>
-		</View>
-	)
-
-	const data = [{ id: 'model', component: renderModelTab() }]
-
-	const renderItem = ({ item }: { item: any }) => (
-		<View style={{ marginHorizontal: 1 }}>{item.component}</View>
-	)
-
 	return (
 		<SafeAreaView style={styles.container}>
-			<ScrollView showsVerticalScrollIndicator={false}>
+			<ScrollView
+				showsVerticalScrollIndicator={false}
+				contentContainerStyle={{ paddingBottom: 16 }}
+			>
+				{/* Header — всегда виден, пилюля меняется на скелетон во время загрузки */}
 				<View style={styles.header}>
 					<View>
 						<Text style={styles.title}>Восстановление</Text>
 						<Text style={styles.subtitle}>Отслеживайте состояние мышц</Text>
 					</View>
+					{loading ? (
+						<ShimmerBlock
+							style={{
+								height: 34,
+								width: 80,
+								borderRadius: 20,
+								backgroundColor: COLORS.cardLight,
+							}}
+						/>
+					) : (
+						<FadeIn show={!loading}>
+							<View
+								style={{
+									...styles.headerPill,
+									alignSelf: 'flex-end',
+									width: 100,
+								}}
+							>
+								<View
+									style={[
+										styles.pillDot,
+										{ backgroundColor: STATUS_COLORS.recovered },
+									]}
+								/>
+								<Text style={styles.pillText}>
+									{recoveryData.filter(r => r.status === 'recovered').length}{' '}
+									готовы
+								</Text>
+							</View>
+						</FadeIn>
+					)}
 				</View>
 
+				{/* Quick stats */}
+				<View style={styles.statsRow}>
+					{loading ? (
+						<>
+							<StatCardSkeleton />
+							<StatCardSkeleton />
+							<StatCardSkeleton />
+						</>
+					) : (
+						<View style={{ width: '100%' }}>
+							<View
+								style={{
+									flexDirection: 'row',
+									width: '100%',
+									gap: 10,
+									flex: 1,
+								}}
+							>
+								{[
+									{ status: 'recovered', label: 'Готовы' },
+									{ status: 'recovering', label: 'Восст.' },
+									{ status: 'needs_rest', label: 'Отдых' },
+								].map(({ status, label }) => {
+									if (loading) return <StatCardSkeleton key={status} />
+
+									const count = recoveryData.filter(
+										r => r.status === status,
+									).length
+									const color =
+										STATUS_COLORS[status as keyof typeof STATUS_COLORS]
+									const bg = STATUS_BG[status as keyof typeof STATUS_BG]
+									return (
+										<FadeIn key={status} show={!loading}>
+											<View
+												style={[
+													styles.statCard,
+													{
+														backgroundColor: bg,
+														flexGrow: 1,
+														borderColor: color + '55',
+													},
+												]}
+											>
+												<Text style={[styles.statCount, { color }]}>
+													{count}
+												</Text>
+												<Text style={styles.statLabel}>{label}</Text>
+											</View>
+										</FadeIn>
+									)
+								})}
+							</View>
+						</View>
+					)}
+				</View>
+
+				{/* Diagram + lists */}
 				<View style={styles.modelSection}>
-					<FlatList
-						ref={flatListRef}
-						data={data}
-						renderItem={renderItem}
-						keyExtractor={item => item.id}
-						horizontal
-						pagingEnabled
-						showsHorizontalScrollIndicator={false}
-						scrollEventThrottle={16}
-						onScroll={Animated.event(
-							[{ nativeEvent: { contentOffset: { x: scrollX } } }],
-							{ useNativeDriver: false },
-						)}
-						onMomentumScrollEnd={event => {
-							const contentOffsetX = event.nativeEvent.contentOffset.x
-							const newIndex = Math.round(contentOffsetX / width)
-						}}
-						style={styles.horizontalScrollView}
-					/>
+					{loading ? (
+						<>
+							<DiagramSkeleton />
+							<View style={styles.listsCard}>
+								<SectionLabel label='Передние мышцы' />
+								{[1, 2, 3, 4].map(i => (
+									<MuscleCardSkeleton key={`f${i}`} />
+								))}
+								<SectionLabel label='Задние мышцы' />
+								{[1, 2, 3].map(i => (
+									<MuscleCardSkeleton key={`b${i}`} />
+								))}
+							</View>
+						</>
+					) : (
+						<FadeIn show={!loading}>
+							<View style={styles.diagramCard}>
+								<Text style={styles.diagramTitle}>Статус мышц</Text>
+
+								<View style={styles.svgRow}>
+									<View style={styles.svgHalf}>
+										<ManBackSvg muscleColors={getBackMuscleColors()} />
+									</View>
+									<View style={styles.svgDivider} />
+									<View style={styles.svgHalf}>
+										<ManFrontSvg muscleColors={getFrontMuscleColors()} />
+									</View>
+								</View>
+
+								<View style={styles.legendRow}>
+									{[
+										{ color: STATUS_COLORS.recovered, label: 'Восстановлено' },
+										{
+											color: STATUS_COLORS.recovering,
+											label: 'Восстанавливается',
+										},
+										{ color: STATUS_COLORS.needs_rest, label: 'Отдых' },
+									].map(({ color, label }) => (
+										<View key={label} style={styles.legendItem}>
+											<View
+												style={[styles.legendDot, { backgroundColor: color }]}
+											/>
+											<Text style={styles.legendText}>{label}</Text>
+										</View>
+									))}
+								</View>
+
+								{selectedMuscle && (
+									<TouchableOpacity
+										style={styles.resetBtn}
+										onPress={() => setSelectedMuscle(null)}
+									>
+										<Text style={styles.resetBtnText}>Показать все мышцы</Text>
+									</TouchableOpacity>
+								)}
+							</View>
+
+							<View style={styles.listsCard}>
+								<SectionLabel label='Передние мышцы' />
+								{frontDataWithStats.map(m => (
+									<MuscleCard
+										key={m.id}
+										muscle={m}
+										side='front'
+										isSelected={
+											selectedMuscle === m.id && muscleSide === 'front'
+										}
+										liveStats={m.stats}
+										allFrontImages={allFrontImages}
+										allBackImages={allBackImages}
+									/>
+								))}
+								<SectionLabel label='Задние мышцы' />
+								{backDataWithStats.map(m => (
+									<MuscleCard
+										key={m.id}
+										muscle={m}
+										side='back'
+										isSelected={
+											selectedMuscle === m.id && muscleSide === 'back'
+										}
+										liveStats={m.stats}
+										allFrontImages={allFrontImages}
+										allBackImages={allBackImages}
+									/>
+								))}
+							</View>
+						</FadeIn>
+					)}
 				</View>
 			</ScrollView>
 		</SafeAreaView>
@@ -549,361 +953,197 @@ export default function RecoveryTab() {
 }
 
 const styles = StyleSheet.create({
-	gridContainer: {
-		padding: 5,
-	},
+	container: { flex: 1, backgroundColor: '#121212', paddingBottom: -40 },
+	cardSvgContainer: { width: 180, height: 480 },
 
-	muscleItemGrid: {
-		flex: 1,
-		margin: 4,
-		padding: 12,
-		backgroundColor: '#1e1e1e',
-		borderRadius: 12,
-		borderWidth: 2,
-		borderColor: '#333',
-	},
-
-	selectedMuscleItemGrid: {
-		borderColor: '#00ff2aff', // или любой акцентный цвет
-		borderWidth: 2,
-	},
-
-	muscleInfo: {
-		flexDirection: 'row',
-		alignItems: 'center',
-	},
-
-	muscleIcon: {
-		width: 30,
-		height: 30,
-		justifyContent: 'center',
-		alignItems: 'center',
-		marginRight: 12,
-		backgroundColor: '#333',
-		borderRadius: 10,
-		overflow: 'hidden',
-	},
-
-	muscleIconText: {
-		color: '#fff',
-		fontSize: 18,
-		fontWeight: 'bold',
-	},
-
-	muscleTextContainer: {
-		flex: 1,
-		justifyContent: 'center',
-	},
-
-	muscleName: {
-		color: '#fff',
-		fontSize: 16,
-		fontWeight: '600',
-	},
-
-	lastTrained: {
-		color: '#888',
-		fontSize: 13,
-		marginTop: 2,
-	},
-
-	muscleStatus: {
-		marginTop: 8,
-	},
-
-	recoveryBar: {
-		height: 6,
-		backgroundColor: '#333',
-		borderRadius: 3,
-		overflow: 'hidden',
-	},
-
-	recoveryFill: {
-		height: '100%',
-		borderRadius: 3,
-	},
-	container: {
-		flex: 1,
-		backgroundColor: '#121212',
-		paddingBottom: -40,
-	},
+	// Header
 	header: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		paddingHorizontal: 10,
-		paddingTop: 20,
-	},
-	title: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-	},
-	subtitle: {
-		fontSize: 16,
-		color: '#8E8E93',
-		marginTop: 4,
-	},
-	statsButton: {
-		padding: 8,
-		backgroundColor: '#1C1C1E',
-		borderRadius: 12,
-	},
-	section: {
-		marginTop: 24,
-		paddingHorizontal: 10,
-	},
-	sectionTitle: {
-		paddingTop: 10,
-		fontSize: 20,
-		fontWeight: '700',
-		color: '#FFFFFF',
-	},
-	modelSection: {
-		marginTop: 24,
-		paddingHorizontal: 10,
-	},
-	tabSelector: {
-		flexDirection: 'row',
-		backgroundColor: '#1C1C1E',
-		borderRadius: 12,
-		padding: 4,
-		marginBottom: 16,
-		alignSelf: 'center',
-	},
-	tabButton: {
-		flex: 1,
-		paddingVertical: 10,
-		paddingHorizontal: 10,
-		borderRadius: 8,
-		alignItems: 'center',
-	},
-	activeTabButton: {
-		backgroundColor: '#34C759',
-	},
-	tabButtonText: {
-		fontSize: 14,
-		fontWeight: '600',
-		color: '#8E8E93',
-	},
-	activeTabButtonText: {
-		color: '#FFFFFF',
-	},
-	horizontalScrollView: {
-		width: width - 20,
-		alignSelf: 'center',
-	},
-	tabContainer: {
-		width: width - 20,
-		flex: 1,
-	},
-	diagramContainer: {
-		backgroundColor: '#1C1C1E',
-		borderRadius: 20,
-		paddingHorizontal: 10,
-		paddingBottom: 20,
-		borderWidth: 1,
-		borderColor: '#2C2C2E',
-		alignItems: 'center',
-	},
-	bodyImageContainer: {
-		width: '50%',
-		height: 450,
-		position: 'relative',
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
-	bodyBackground: {
-		width: '180%',
-		height: '180%',
-		position: 'absolute',
-		opacity: 0.6,
-	},
-	muscleImage: {
-		width: '180%',
-		height: '180%',
-		position: 'absolute',
-	},
-	legend: {
-		width: width - 40,
-	},
-	legendItem: {
 		width: '100%',
 		flexDirection: 'row',
-		alignItems: 'center',
-		padding: 5,
-		marginBottom: 2,
-		borderRadius: 5,
-		backgroundColor: '#2a2a2aff',
-	},
-	legendColor: {
-		width: 12,
-		height: 12,
-		borderRadius: 6,
-		marginRight: 6,
-	},
-	legendText: {
-		fontSize: 10,
-		color: '#8E8E93',
-	},
-	toggleButton: {
-		marginBottom: 20,
-		paddingVertical: 10,
-		paddingHorizontal: 10,
-		backgroundColor: '#2C2C2E',
-		borderRadius: 12,
-	},
-	toggleButtonText: {
-		color: '#34C759',
-		fontSize: 14,
-		fontWeight: '600',
-	},
-	overviewCard: {
-		backgroundColor: '#1C1C1E',
-		marginHorizontal: 10,
-		marginTop: 24,
-		borderRadius: 20,
-		padding: 10,
-		borderWidth: 1,
-		borderColor: '#2C2C2E',
-	},
-	overviewTitle: {
-		fontSize: 18,
-		fontWeight: '600',
-		color: '#FFFFFF',
-		marginBottom: 16,
-	},
-	progressContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-	},
-	progressCircle: {
-		width: 100,
-		height: 100,
-		borderRadius: 50,
-		borderWidth: 8,
-		borderColor: '#34C759',
-		justifyContent: 'center',
-		alignItems: 'center',
-		marginRight: 20,
-		backgroundColor: 'rgba(52, 199, 89, 0.1)',
-	},
-	progressText: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		color: '#FFFFFF',
-	},
-	progressLabel: {
-		fontSize: 11,
-		color: '#8E8E93',
-		marginTop: 4,
-	},
-	overviewStats: {
-		flex: 1,
-	},
-	statRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		marginBottom: 12,
-	},
-	statusDot: {
-		width: 12,
-		height: 12,
-		borderRadius: 6,
-		marginRight: 8,
-	},
-	statText: {
-		fontSize: 14,
-		color: '#8E8E93',
-	},
-	musclesListContainer: {
-		flex: 1,
-		backgroundColor: '#1C1C1E',
-		borderRadius: 20,
-		padding: 20,
-		borderWidth: 1,
-		borderColor: '#2C2C2E',
-	},
-	listTitle: {
-		fontSize: 18,
-		fontWeight: '600',
-		color: '#FFFFFF',
-		marginBottom: 16,
-	},
-	musclesScrollView: {
-		height: 600,
-	},
-	muscleItem: {
-		backgroundColor: '#2C2C2E',
-		borderRadius: 12,
-		padding: 12,
-		marginBottom: 8,
-		borderColor: '#3A3A3C',
-		borderWidth: 2,
-	},
-	selectedMuscleItem: {
-		borderColor: '#34C759',
-		borderWidth: 2,
-		backgroundColor: 'rgba(52, 199, 89, 0.1)',
-	},
-
-	recoveryInfo: {
-		flexDirection: 'row',
-		alignItems: 'center',
 		justifyContent: 'space-between',
+		alignItems: 'center',
+		paddingHorizontal: 8,
+		paddingTop: 20,
+		paddingBottom: 8,
 	},
-	recoveryPercent: {
-		fontSize: 12,
-		color: '#FFFFFF',
-		fontWeight: '600',
-	},
-	statusText: {
-		fontSize: 11,
-		fontWeight: '600',
-	},
-	recommendationCard: {
-		backgroundColor: '#1C1C1E',
-		borderRadius: 16,
-		padding: 16,
+	title: { fontSize: 24, fontWeight: 'bold', color: COLORS.text },
+	subtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4 },
+	headerPill: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		marginBottom: 8,
-		borderWidth: 1,
-		borderColor: '#2C2C2E',
-	},
-	recommendationIcon: {
-		width: 40,
-		height: 40,
+		backgroundColor: 'rgba(52, 199, 89, 0.1)',
 		borderRadius: 20,
-		backgroundColor: 'rgba(255, 204, 0, 0.1)',
-		justifyContent: 'center',
-		alignItems: 'center',
-		marginRight: 12,
+		paddingHorizontal: 12,
+		paddingVertical: 6,
+		borderWidth: 1,
+		borderColor: 'rgba(52, 199, 89, 0.2)',
+		gap: 6,
 	},
-	recommendationContent: {
-		flex: 1,
-	},
-	recommendationTitle: {
-		fontSize: 16,
-		fontWeight: '600',
-		color: '#FFFFFF',
-		marginBottom: 4,
-	},
-	recommendationText: {
-		fontSize: 14,
-		color: '#8E8E93',
-		lineHeight: 20,
-	},
-	pagination: {
+	pillDot: { width: 7, height: 7, borderRadius: 3.5 },
+	pillText: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
+
+	// Stats row
+	statsRow: {
 		flexDirection: 'row',
-		alignSelf: 'center',
+		paddingHorizontal: 8,
+		gap: 10,
 		marginTop: 16,
 	},
-	paginationDot: {
-		width: 8,
-		height: 8,
-		borderRadius: 4,
-		backgroundColor: '#34C759',
-		marginHorizontal: 4,
+	statCard: {
+		flex: 1,
+		borderRadius: 16,
+		paddingVertical: 16,
+		alignItems: 'center',
+		borderWidth: 1,
 	},
+	statCount: { fontSize: 24, fontWeight: 'bold' },
+	statLabel: {
+		fontSize: 12,
+		color: COLORS.textSecondary,
+		marginTop: 2,
+		fontWeight: '500',
+	},
+
+	// Layout
+	modelSection: { marginTop: 20, paddingHorizontal: 8, gap: 12 },
+
+	// Diagram card
+	diagramCard: {
+		backgroundColor: COLORS.card,
+		borderRadius: 16,
+		padding: 16,
+		borderWidth: 1,
+		borderColor: COLORS.border,
+		alignItems: 'center',
+	},
+	diagramTitle: {
+		fontSize: 18,
+		fontWeight: '600',
+		color: COLORS.text,
+		alignSelf: 'flex-start',
+		marginBottom: 16,
+	},
+	svgRow: { flexDirection: 'row', width: '100%', marginBottom: 16 },
+	svgHalf: {
+		flex: 1,
+		alignItems: 'center',
+		height: 440,
+		justifyContent: 'center',
+	},
+	svgLabel: {
+		fontSize: 11,
+		color: COLORS.textSecondary,
+		fontWeight: '600',
+		letterSpacing: 0.8,
+		textTransform: 'uppercase',
+		marginBottom: 8,
+	},
+	svgDivider: { width: 1, backgroundColor: COLORS.border, marginVertical: 20 },
+
+	// Legend
+	legendRow: {
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		justifyContent: 'center',
+		gap: 8,
+		width: '100%',
+		marginBottom: 8,
+	},
+	legendItem: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+		backgroundColor: COLORS.cardLight,
+		borderRadius: 20,
+		paddingHorizontal: 10,
+		paddingVertical: 5,
+	},
+	legendDot: { width: 8, height: 8, borderRadius: 4 },
+	legendText: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '500' },
+
+	// Reset button
+	resetBtn: {
+		marginTop: 10,
+		paddingVertical: 10,
+		paddingHorizontal: 20,
+		backgroundColor: COLORS.cardLight,
+		borderRadius: 12,
+		borderWidth: 1,
+		borderColor: 'rgba(52, 199, 89, 0.3)',
+	},
+	resetBtnText: { color: COLORS.primary, fontSize: 14, fontWeight: '600' },
+
+	// Lists card
+	listsCard: { gap: 4 },
+
+	// Section label
+	sectionLabelRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 10,
+		marginVertical: 12,
+	},
+	sectionLabelLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
+	sectionLabelText: {
+		fontSize: 11,
+		color: COLORS.textSecondary,
+		fontWeight: '700',
+		letterSpacing: 1.2,
+		textTransform: 'uppercase',
+	},
+
+	// Muscle card
+	muscleCard: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		backgroundColor: COLORS.card,
+		borderRadius: 14,
+		padding: 12,
+		borderWidth: 1,
+		borderColor: COLORS.border,
+		marginBottom: 6,
+		gap: 18,
+	},
+	cardIconWrap: {
+		width: 50,
+		height: 50,
+		borderRadius: 12,
+		justifyContent: 'center',
+		alignItems: 'center',
+		overflow: 'hidden',
+	},
+	cardIcon: { width: '160%', height: '160%' },
+	cardBody: { flex: 1, gap: 3 },
+	cardName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+	cardDate: { fontSize: 12, color: COLORS.textSecondary },
+	cardBadge: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 5,
+		borderRadius: 10,
+		paddingHorizontal: 10,
+		paddingVertical: 6,
+	},
+	cardBadgeDot: { width: 6, height: 6, borderRadius: 3 },
+	cardBadgeText: { fontSize: 13, fontWeight: '700' },
+
+	// Unused legacy
+	fullPageLoader: {
+		flex: 1,
+		justifyContent: 'center',
+		alignItems: 'center',
+		backgroundColor: '#121212',
+	},
+	loadingSpinner: {
+		width: 80,
+		height: 80,
+		borderRadius: 40,
+		backgroundColor: '#121212',
+		alignItems: 'center',
+		justifyContent: 'center',
+		marginBottom: 20,
+	},
+	loadingText: { fontSize: 16, color: COLORS.textSecondary },
+	skeletonText: { backgroundColor: COLORS.cardLight, borderRadius: 4 },
+	skeletonModel: { backgroundColor: COLORS.cardLight, borderRadius: 12 },
 })
