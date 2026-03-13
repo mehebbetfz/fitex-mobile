@@ -11,7 +11,6 @@ import * as Haptics from 'expo-haptics'
 import { Image } from 'expo-image'
 import React, { useEffect, useRef, useState } from 'react'
 import {
-	ActivityIndicator,
 	Animated,
 	Dimensions,
 	FlatList,
@@ -44,12 +43,8 @@ const COLORS = {
 
 const MUSCLE_FRONT_DATA = [
 	{
-		id: 'chest',
+		id: '1',
 		name: 'Грудь',
-		status: 'recovering',
-		recovery: 65,
-		color: '#FF6B6B',
-		lastTrained: '2 дня назад',
 		muscleImages: [
 			'leftPectoralisMajor',
 			'rightPectoralisMajor',
@@ -61,12 +56,8 @@ const MUSCLE_FRONT_DATA = [
 		icon: manFrontMuscleGroupParts.rectoralFull,
 	},
 	{
-		id: 'press',
+		id: '2',
 		name: 'Пресс',
-		status: 'recovered',
-		recovery: 100,
-		color: '#4ECDC4',
-		lastTrained: '4 дня назад',
 		muscleImages: [
 			'upperAbs',
 			'lowerAbs',
@@ -82,12 +73,8 @@ const MUSCLE_FRONT_DATA = [
 		icon: manFrontMuscleGroupParts.pressFull,
 	},
 	{
-		id: 'arms',
+		id: '3',
 		name: 'Руки',
-		status: 'recovering',
-		recovery: 80,
-		color: '#45B7D1',
-		lastTrained: '3 дня назад',
 		muscleImages: [
 			'leftLongBiceps',
 			'rightLongBiceps',
@@ -97,12 +84,8 @@ const MUSCLE_FRONT_DATA = [
 		icon: manFrontMuscleGroupParts.bicepsFull,
 	},
 	{
-		id: 'deltoids',
+		id: '4',
 		name: 'Дельты',
-		status: 'recovered',
-		recovery: 100,
-		color: '#96CEB4',
-		lastTrained: '5 дней назад',
 		muscleImages: [
 			'leftFrontDeltoid',
 			'rightFrontDeltoid',
@@ -112,12 +95,8 @@ const MUSCLE_FRONT_DATA = [
 		icon: manFrontMuscleGroupParts.deltoidsFull,
 	},
 	{
-		id: 'legs',
+		id: '5',
 		name: 'Ноги',
-		status: 'needs_rest',
-		recovery: 25,
-		color: '#FFEAA7',
-		lastTrained: '1 день назад',
 		muscleImages: [
 			'leftVastusLateralis',
 			'rightVastusLateralis',
@@ -134,9 +113,75 @@ const MUSCLE_FRONT_DATA = [
 		],
 		icon: manFrontMuscleGroupParts.upperLegFull,
 	},
+	{
+		id: '6',
+		name: 'Предплечья',
+		position: {
+			left: '-100%',
+			top: '-220%',
+		},
+		muscleImages: [
+			'rightExtensorDigitorum',
+			'leftExtensorDigitorum',
+			'rightExtensorCarpiUharis',
+			'leftExtensorCarpiUharis',
+			'rightExtensorCarpiRadialis',
+			'leftExtensorCarpiRadialis',
+		],
+		icon: manBackMuscleGroupParts.internalOblique,
+	},
 ]
 
 const MUSCLE_BACK_DATA = [
+	{
+		id: '1',
+		name: 'Ноги',
+		position: {
+			left: '-100%',
+			top: '-280%',
+		},
+		muscleImages: [
+			'leftBiceosFemoris',
+			'leftGastrocnemius',
+			'leftSemitendinosus',
+			'rightBiceosFemoris',
+			'rightGastrocnemius',
+			'rightSemitendinosus',
+		],
+		icon: manBackMuscleGroupParts.deltoidFull,
+	},
+	{
+		id: '2',
+		name: 'Предплечья',
+		position: {
+			left: '-100%',
+			top: '-220%',
+		},
+		muscleImages: [
+			'leftFlexorDigitorumProfundus',
+			'leftFlexorPollicisLongus',
+			'rightFlexorDigitorumProfundus',
+			'rightFlexorPollicisLongus',
+		],
+		icon: manBackMuscleGroupParts.internalOblique,
+	},
+	{
+		id: '3',
+		name: 'Ягодицы',
+		position: {
+			left: '-100%',
+			top: '-240%',
+		},
+		muscleImages: [
+			'leftGluteusMaximus',
+			'leftGluteusMedius',
+			'leftInternalOblique',
+			'rightGluteusMaximus',
+			'rightGluteusMedius',
+			'rightInternalOblique',
+		],
+		icon: manBackMuscleGroupParts.forearmFull,
+	},
 	{
 		id: '4',
 		name: 'Спина',
@@ -151,31 +196,45 @@ const MUSCLE_BACK_DATA = [
 			'rightIntraspinatus',
 			'rightLatissimusDorsi',
 			'rightThoracolumbarFascia',
+		],
+		icon: manBackMuscleGroupParts.deltoidFull,
+	},
+	{
+		id: '5',
+		name: 'Трапеции',
+		position: {
+			left: '-100%',
+			top: '-150%',
+		},
+		muscleImages: [
 			'leftLowerTrapezius',
 			'leftUpperTrapezius',
 			'rightLowerTrapezius',
 			'rightUpperTrapezius',
 		],
-		icon: manBackMuscleGroupParts.deltoidFull,
+		icon: manBackMuscleGroupParts.trapeziusFull,
+	},
+	{
+		id: '6',
+		name: 'Плечи',
+		position: {
+			left: '-70%',
+			top: '-150%',
+		},
+		muscleImages: ['leftRearDeltoid', 'rightRearDeltoid'],
+		icon: manBackMuscleGroupParts.upperLegFull,
+	},
+	{
+		id: '7',
+		name: 'Трицепс',
+		position: {
+			left: '-100%',
+			top: '-200%',
+		},
+		muscleImages: ['leftTriceps', 'rightTriceps'],
+		icon: manBackMuscleGroupParts.triceps,
 	},
 ]
-
-interface ExerciseSet {
-	id?: number
-	setNumber: number
-	weight: number
-	reps: number
-	completed: boolean
-}
-
-interface Exercise {
-	id?: number
-	name: string
-	muscleGroup: string
-	sets: ExerciseSet[]
-	collapsed: boolean
-	order_index: number
-}
 
 interface ExerciseDetail {
 	id: string
@@ -219,10 +278,10 @@ interface ExerciseSelectionModalProps {
 	onSelectExercise: (exercise: { name: string; muscleGroup: string }) => void
 }
 
-// Константы для пагинации
 const EXERCISES_PAGE_SIZE = 10
 
-// Хук для анимации shimmer
+// ─── Shimmer ──────────────────────────────────────────────────────────────────
+
 const useShimmer = () => {
 	const anim = useRef(new Animated.Value(0)).current
 	useEffect(() => {
@@ -255,7 +314,7 @@ const ShimmerBlock = ({ style }: { style: any }) => {
 	)
 }
 
-// Скелетон для карточки упражнения
+// Single skeleton card — matches real exercise card layout exactly
 const ExerciseCardSkeleton = () => (
 	<View style={modalStyles.exerciseListItem}>
 		<ShimmerBlock
@@ -263,57 +322,41 @@ const ExerciseCardSkeleton = () => (
 		/>
 		<View style={modalStyles.exerciseListContent}>
 			<View style={modalStyles.exerciseListHeader}>
-				<ShimmerBlock style={{ width: 120, height: 20 }} />
-				<ShimmerBlock style={{ width: 24, height: 24, borderRadius: 12 }} />
+				<ShimmerBlock style={{ width: 130, height: 18, borderRadius: 4 }} />
+				<ShimmerBlock style={{ width: 22, height: 22, borderRadius: 11 }} />
 			</View>
-			<ShimmerBlock style={{ width: '100%', height: 32, marginBottom: 8 }} />
+			<ShimmerBlock
+				style={{ width: '90%', height: 12, borderRadius: 4, marginBottom: 6 }}
+			/>
+			<ShimmerBlock
+				style={{ width: '60%', height: 12, borderRadius: 4, marginBottom: 10 }}
+			/>
 			<View style={modalStyles.exerciseListTags}>
-				<ShimmerBlock style={{ width: 80, height: 24, borderRadius: 6 }} />
-				<ShimmerBlock style={{ width: 60, height: 24, borderRadius: 6 }} />
+				<ShimmerBlock style={{ width: 72, height: 22, borderRadius: 6 }} />
+				<ShimmerBlock style={{ width: 56, height: 22, borderRadius: 6 }} />
 			</View>
 		</View>
-		<ShimmerBlock style={{ width: 20, height: 20 }} />
 	</View>
 )
 
-// Скелетон для списка упражнений
+// Fixed count skeleton — renders exactly EXERCISES_PAGE_SIZE items, no more
 const ExercisesListSkeleton = () => (
 	<View style={{ padding: 8 }}>
-		{[1, 2, 3, 4, 5].map(item => (
-			<ExerciseCardSkeleton key={item} />
+		{Array.from({ length: EXERCISES_PAGE_SIZE }).map((_, i) => (
+			<ExerciseCardSkeleton key={i} />
 		))}
 	</View>
 )
 
-// Компонент для подгрузки в конце списка
-const LoadingFooter = () => (
+// ─── Load-more footer — only shown when paginating, never during initial load ──
+
+const LoadMoreFooter = () => (
 	<View style={modalStyles.loadingFooter}>
-		<ActivityIndicator size='small' color={COLORS.primary} />
-		<Text style={modalStyles.loadingFooterText}>Загрузка упражнений...</Text>
+		<ShimmerBlock style={{ width: 200, height: 14, borderRadius: 4 }} />
 	</View>
 )
 
-const subgroupHeaderStyles = StyleSheet.create({
-	container: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		marginVertical: 20,
-		marginHorizontal: 4,
-	},
-	line: {
-		flex: 1,
-		height: 1,
-		backgroundColor: COLORS.border,
-	},
-	title: {
-		fontSize: 11,
-		fontWeight: '700',
-		color: COLORS.textSecondary,
-		textTransform: 'uppercase',
-		letterSpacing: 1.2,
-		marginHorizontal: 12,
-	},
-})
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 	visible,
@@ -321,167 +364,245 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 	onSelectExercise,
 }) => {
 	const [selectedMuscleGroup, setSelectedMuscleGroup] =
-		useState<MuscleGroup | null>()
+		useState<MuscleGroup | null>(null)
 	const [selectedExercise, setSelectedExercise] =
 		useState<ExerciseDetail | null>(null)
 	const [searchQuery, setSearchQuery] = useState('')
 	const [favorites, setFavorites] = useState<string[]>([])
+
 	const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current
 	const [modalVisible, setModalVisible] = useState(false)
 
-	// Состояния для пагинации
+	// Pagination — single source of truth
+	const [allExercises, setAllExercises] = useState<ExerciseDetail[]>([])
 	const [displayedExercises, setDisplayedExercises] = useState<
 		ExerciseDetail[]
 	>([])
 	const [currentPage, setCurrentPage] = useState(1)
-	const [hasMore, setHasMore] = useState(true)
+	const [hasMore, setHasMore] = useState(false)
 	const [isLoadingMore, setIsLoadingMore] = useState(false)
+
+	// isInitialLoading: true only while we haven't rendered the first page yet
 	const [isInitialLoading, setIsInitialLoading] = useState(false)
-	const [allExercises, setAllExercises] = useState<ExerciseDetail[]>([])
 
-	const getSideAndColorsForGroup = (
-		groupName: string,
-	): { side: 'front' | 'back'; colors: { [key: string]: string } } => {
-		const frontGroup = MUSCLE_FRONT_DATA.find(g => g.name === groupName)
-		if (frontGroup) {
-			const colors: { [key: string]: string } = {}
-			frontGroup.muscleImages.forEach(key => {
-				colors[key] = COLORS.green
+	// Keeps track of which group/query triggered the current load so stale
+	// setState calls from previous selections don't leak in.
+	const loadKey = useRef(0)
+	const currentGroupIdRef = useRef<string | null>(null)
+	const searchTimeoutRef = useRef<NodeJS.Timeout>(null)
+
+	// ── Helpers ────────────────────────────────────────────────────────────────
+
+	const getSideAndColorsForGroup = (groupName: string) => {
+		// Сначала ищем в BACK — у них приоритет для задних групп
+		const back = MUSCLE_BACK_DATA.find(g => g.name === groupName)
+		if (back) {
+			const colors: Record<string, string> = {}
+			back.muscleImages.forEach(k => {
+				colors[k] = COLORS.green
 			})
-			return { side: 'front', colors }
+			return { side: 'back' as const, colors }
 		}
-
-		const backGroup = MUSCLE_BACK_DATA.find(g => g.name === groupName)
-		if (backGroup) {
-			const colors: { [key: string]: string } = {}
-			backGroup.muscleImages.forEach(key => {
-				colors[key] = COLORS.green
+		const front = MUSCLE_FRONT_DATA.find(g => g.name === groupName)
+		if (front) {
+			const colors: Record<string, string> = {}
+			front.muscleImages.forEach(k => {
+				colors[k] = COLORS.green
 			})
-			return { side: 'back', colors }
+			return { side: 'front' as const, colors }
 		}
-
-		return { side: 'front', colors: {} }
+		return { side: 'front' as const, colors: {} }
 	}
+
+	const getTintColor = (percent: number) => {
+		const p = Math.max(0, Math.min(100, percent)) / 100
+		const g = Math.round(255 * (1 - p))
+		return `#ff${g.toString(16).padStart(2, '0')}00`
+	}
+
+	const getFrontMuscleColors = (ex: ExerciseDetail) => {
+		const colors: Record<string, string> = {}
+		MUSCLE_FRONT_DATA.forEach(m =>
+			m.muscleImages.forEach(k => {
+				if (ex.primaryFrontMuscles.includes(k)) colors[k] = getTintColor(100)
+				else if (ex.secondaryFrontMuscles.includes(k))
+					colors[k] = getTintColor(50)
+			}),
+		)
+		return colors
+	}
+
+	const getBackMuscleColors = (ex: ExerciseDetail) => {
+		const colors: Record<string, string> = {}
+		MUSCLE_BACK_DATA.forEach(m =>
+			m.muscleImages.forEach(k => {
+				if (ex.primaryBackMuscles.includes(k)) colors[k] = getTintColor(100)
+				else if (ex.secondaryBackMuscles.includes(k))
+					colors[k] = getTintColor(50)
+			}),
+		)
+		return colors
+	}
+
+	// ── Load exercises for a group or search query ─────────────────────────────
+
+	const loadExercises = (exercises: ExerciseDetail[], source: string) => {
+		const key = ++loadKey.current
+
+		// Показываем скелетон
+		setIsInitialLoading(true)
+		setDisplayedExercises([])
+		setAllExercises(exercises)
+
+		// Используем setTimeout для гарантии обновления UI
+		setTimeout(() => {
+			if (loadKey.current !== key) {
+				console.log(`Stale load cancelled: ${source}`)
+				return // устаревший вызов, игнорируем
+			}
+
+			setDisplayedExercises(exercises.slice(0, EXERCISES_PAGE_SIZE))
+			setCurrentPage(1)
+			setHasMore(exercises.length > EXERCISES_PAGE_SIZE)
+			setIsInitialLoading(false)
+		}, 50)
+	}
+
+	// ── Effects ────────────────────────────────────────────────────────────────
 
 	useEffect(() => {
 		if (visible) {
 			setModalVisible(true)
-			Animated.timing(slideAnim, {
+			Animated.spring(slideAnim, {
 				toValue: 0,
-				duration: 300,
 				useNativeDriver: true,
+				tension: 65,
+				friction: 11,
 			}).start()
 		} else {
 			Animated.timing(slideAnim, {
 				toValue: SCREEN_HEIGHT,
-				duration: 250,
+				duration: 260,
 				useNativeDriver: true,
 			}).start(() => {
 				setModalVisible(false)
 				setSelectedMuscleGroup(null)
 				setSelectedExercise(null)
 				setSearchQuery('')
-				setCurrentPage(1)
 				setDisplayedExercises([])
 				setAllExercises([])
+				setCurrentPage(1)
+				setHasMore(false)
+				setIsInitialLoading(false)
+				loadKey.current = 0
+				currentGroupIdRef.current = null
 			})
 		}
 	}, [visible])
 
+	// Default to first group on open
 	useEffect(() => {
 		if (visible && MUSCLE_GROUPS.length > 0 && !selectedMuscleGroup) {
 			setSelectedMuscleGroup(MUSCLE_GROUPS[0])
 		}
 	}, [visible, selectedMuscleGroup])
 
-	// Загрузка всех упражнений при выборе группы мышц
+	// Reload when group changes (and no active search)
 	useEffect(() => {
-		if (selectedMuscleGroup) {
-			setIsInitialLoading(true)
-			setCurrentPage(1)
+		if (!selectedMuscleGroup || searchQuery) return
 
-			// Собираем все упражнения из выбранной группы
-			const exercises = selectedMuscleGroup.subgroups.flatMap(
-				subgroup => subgroup.exercises,
-			)
-			setAllExercises(exercises)
+		// Обновляем ref с текущей группой
+		currentGroupIdRef.current = selectedMuscleGroup.id
 
-			// Показываем первую страницу
-			setDisplayedExercises(exercises.slice(0, EXERCISES_PAGE_SIZE))
-			setHasMore(exercises.length > EXERCISES_PAGE_SIZE)
+		const exercises = selectedMuscleGroup.subgroups.flatMap(sg => sg.exercises)
 
-			// Имитация загрузки для плавности
-			setTimeout(() => {
-				setIsInitialLoading(false)
-			}, 500)
-		}
+		// Добавляем небольшую задержку перед загрузкой
+		const timeoutId = setTimeout(() => {
+			// Проверяем, не изменилась ли группа за время задержки
+			if (currentGroupIdRef.current === selectedMuscleGroup.id) {
+				loadExercises(exercises, `group-${selectedMuscleGroup.id}`)
+			}
+		}, 100)
+
+		return () => clearTimeout(timeoutId)
 	}, [selectedMuscleGroup])
 
-	// Фильтрация упражнений при поиске
+	// Reload when search query changes
 	useEffect(() => {
-		if (searchQuery) {
-			const query = searchQuery.toLowerCase()
+		// Очищаем предыдущий таймаут поиска
+		if (searchTimeoutRef.current) {
+			clearTimeout(searchTimeoutRef.current)
+		}
+
+		if (!searchQuery) {
+			// Возвращаемся к группе
+			if (selectedMuscleGroup) {
+				currentGroupIdRef.current = selectedMuscleGroup.id
+				const exercises = selectedMuscleGroup.subgroups.flatMap(
+					sg => sg.exercises,
+				)
+				loadExercises(exercises, `group-${selectedMuscleGroup.id}-clear`)
+			}
+			return
+		}
+
+		// Debounce для поиска
+		searchTimeoutRef.current = setTimeout(() => {
+			const q = searchQuery.toLowerCase()
 			const filtered = MUSCLE_GROUPS.flatMap(group =>
-				group.subgroups.flatMap(subgroup =>
-					subgroup.exercises.filter(
-						exercise =>
-							exercise.name.toLowerCase().includes(query) ||
-							exercise.description.toLowerCase().includes(query) ||
-							exercise.primaryMuscles.some(muscle =>
-								muscle.toLowerCase().includes(query),
-							),
+				group.subgroups.flatMap(sg =>
+					sg.exercises.filter(
+						ex =>
+							ex.name.toLowerCase().includes(q) ||
+							ex.description.toLowerCase().includes(q) ||
+							ex.primaryMuscles.some(m => m.toLowerCase().includes(q)),
 					),
 				),
 			)
-			setAllExercises(filtered)
-			setDisplayedExercises(filtered.slice(0, EXERCISES_PAGE_SIZE))
-			setHasMore(filtered.length > EXERCISES_PAGE_SIZE)
-			setCurrentPage(1)
+			loadExercises(filtered, `search-${searchQuery}`)
+		}, 300)
+
+		return () => {
+			if (searchTimeoutRef.current) {
+				clearTimeout(searchTimeoutRef.current)
+			}
 		}
 	}, [searchQuery])
 
-	// Загрузка следующей страницы
+	// ── Pagination ─────────────────────────────────────────────────────────────
+
 	const loadNextPage = () => {
-		if (isLoadingMore || !hasMore || !allExercises.length) return
+		if (isLoadingMore || !hasMore || isInitialLoading) return
 
 		setIsLoadingMore(true)
 
-		// Имитация задержки сети
 		setTimeout(() => {
 			const nextPage = currentPage + 1
-			const startIndex = currentPage * EXERCISES_PAGE_SIZE
-			const endIndex = nextPage * EXERCISES_PAGE_SIZE
-			const newExercises = allExercises.slice(0, endIndex)
-
-			setDisplayedExercises(newExercises)
+			const end = nextPage * EXERCISES_PAGE_SIZE
+			setDisplayedExercises(allExercises.slice(0, end))
 			setCurrentPage(nextPage)
-			setHasMore(allExercises.length > endIndex)
+			setHasMore(allExercises.length > end)
 			setIsLoadingMore(false)
-		}, 500)
+		}, 50)
 	}
 
-	const toggleFavorite = (exerciseId: string) => {
-		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+	// ── Actions ────────────────────────────────────────────────────────────────
 
+	const toggleFavorite = (id: string) => {
+		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 		setFavorites(prev =>
-			prev.includes(exerciseId)
-				? prev.filter(id => id !== exerciseId)
-				: [...prev, exerciseId],
+			prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id],
 		)
 	}
 
 	const handleBack = () => {
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-		if (selectedExercise) {
-			setSelectedExercise(null)
-		} else {
-			onClose()
-		}
+		if (selectedExercise) setSelectedExercise(null)
+		else onClose()
 	}
 
 	const handleSelectExercise = () => {
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
 		if (selectedExercise) {
 			onSelectExercise({
 				name: selectedExercise.name,
@@ -498,68 +619,26 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 		setSelectedExercise(null)
 	}
 
-	const getTintColor = (percent: number): string => {
-		const p = Math.max(0, Math.min(100, percent)) / 100
-		const r = 255
-		const g = Math.round(255 * (1 - p))
-		const b = 0
-		const hexR = r.toString(16).padStart(2, '0')
-		const hexG = g.toString(16).padStart(2, '0')
-		const hexB = b.toString(16).padStart(2, '0')
-		return `#${hexR}${hexG}${hexB}`
-	}
+	// ── Render helpers ─────────────────────────────────────────────────────────
 
-	const getFrontMuscleColors = (exercise: any) => {
-		const { primaryFrontMuscles, secondaryFrontMuscles } = exercise
-		const muscleColors: { [key: string]: string } = {}
-		MUSCLE_FRONT_DATA.forEach(muscle => {
-			muscle.muscleImages.forEach(imageKey => {
-				if (primaryFrontMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(100)
-				if (secondaryFrontMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(50)
-			})
-		})
-		return muscleColors
-	}
-
-	const getBackMuscleColors = (exercise: any) => {
-		const { primaryBackMuscles, secondaryBackMuscles } = exercise
-		const muscleColors: { [key: string]: string } = {}
-		MUSCLE_BACK_DATA.forEach(muscle => {
-			muscle.muscleImages.forEach(imageKey => {
-				if (primaryBackMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(100)
-				if (secondaryBackMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(50)
-			})
-		})
-		return muscleColors
-	}
-
-	const renderHeader = () => {
-		let title = 'Выберите упражнение'
-		if (selectedExercise) title = selectedExercise?.name || ''
-
-		return (
-			<View style={modalStyles.header}>
-				<TouchableOpacity
-					style={modalStyles.backButton}
-					onPress={handleBack}
-					activeOpacity={0.7}
-				>
-					<Ionicons
-						name={selectedExercise ? 'arrow-back' : 'close'}
-						size={24}
-						color={COLORS.text}
-					/>
-				</TouchableOpacity>
-				<Text style={modalStyles.headerTitle} numberOfLines={1}>
-					{title}
-				</Text>
-			</View>
-		)
-	}
+	const renderHeader = () => (
+		<View style={modalStyles.header}>
+			<TouchableOpacity
+				style={modalStyles.backButton}
+				onPress={handleBack}
+				activeOpacity={0.7}
+			>
+				<Ionicons
+					name={selectedExercise ? 'arrow-back' : 'close'}
+					size={24}
+					color={COLORS.text}
+				/>
+			</TouchableOpacity>
+			<Text style={modalStyles.headerTitle} numberOfLines={1}>
+				{selectedExercise ? selectedExercise.name : 'Выберите упражнение'}
+			</Text>
+		</View>
+	)
 
 	const renderMuscleGroupsHorizontal = () => (
 		<View style={modalStyles.groupsContainer}>
@@ -572,7 +651,6 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 				renderItem={({ item }) => {
 					const { side, colors } = getSideAndColorsForGroup(item.name)
 					const isSelected = selectedMuscleGroup?.id === item.id
-
 					return (
 						<TouchableOpacity
 							style={[
@@ -675,7 +753,6 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 					}}
 				/>
 			</View>
-
 			<View style={modalStyles.exerciseListContent}>
 				<View style={modalStyles.exerciseListHeader}>
 					<Text style={modalStyles.exerciseListName} numberOfLines={1}>
@@ -720,6 +797,7 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 	)
 
 	const renderExercisesList = () => {
+		// Show skeleton while first page is loading — nothing else
 		if (isInitialLoading) {
 			return <ExercisesListSkeleton />
 		}
@@ -753,21 +831,28 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 			)
 		}
 
-		// Группировка по подгруппам для выбранной группы мышц
+		// Group by subgroup when browsing (no search)
 		if (selectedMuscleGroup && !searchQuery) {
+			// Create a flat list of exercises with section headers
 			const sections = selectedMuscleGroup.subgroups
-				.map(subgroup => ({
-					subgroup,
-					exercises: subgroup.exercises.filter(ex =>
+				.map(sg => ({
+					title: sg.name,
+					data: sg.exercises.filter(ex =>
 						displayedExercises.some(de => de.id === ex.id),
 					),
 				}))
-				.filter(s => s.exercises.length > 0)
+				.filter(s => s.data.length > 0)
+
+			// Flatten the data with section headers
+			const flatData = sections.flatMap(section => [
+				{ type: 'header', title: section.title, id: `header-${section.title}` },
+				...section.data.map(ex => ({ type: 'exercise', data: ex, id: ex.id })),
+			])
 
 			return (
 				<FlatList
-					data={sections}
-					keyExtractor={item => item.subgroup.id}
+					data={flatData}
+					keyExtractor={item => item.id}
 					showsVerticalScrollIndicator={false}
 					contentContainerStyle={[
 						modalStyles.exercisesList,
@@ -775,24 +860,20 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 					]}
 					onEndReached={loadNextPage}
 					onEndReachedThreshold={0.3}
-					ListFooterComponent={hasMore ? <LoadingFooter /> : null}
-					renderItem={({ item: section }) => (
-						<View>
-							{/* <View style={subgroupHeaderStyles.container}>
-								<View style={subgroupHeaderStyles.line} />
-								<Text style={subgroupHeaderStyles.title}>
-									{section.subgroup.name}
-								</Text>
-								<View style={subgroupHeaderStyles.line} />
-							</View> */}
-							{section.exercises.map(item => renderExerciseListItem(item))}
-						</View>
-					)}
+					ListFooterComponent={
+						hasMore && !isInitialLoading ? <LoadMoreFooter /> : null
+					}
+					renderItem={({ item }) => {
+						if (item.type === 'header') {
+							return <View></View>
+						}
+						return renderExerciseListItem(item.data)
+					}}
 				/>
 			)
 		}
 
-		// Для поиска - плоский список
+		// Flat list for search results
 		return (
 			<FlatList
 				data={displayedExercises}
@@ -805,21 +886,17 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 				renderItem={({ item }) => renderExerciseListItem(item)}
 				onEndReached={loadNextPage}
 				onEndReachedThreshold={0.3}
-				ListFooterComponent={hasMore ? <LoadingFooter /> : null}
+				ListFooterComponent={
+					hasMore && !isInitialLoading ? <LoadMoreFooter /> : null
+				}
 			/>
 		)
 	}
 
 	const renderExerciseDetail = () => {
 		if (!selectedExercise) return null
-
 		return (
-			<View
-				style={{
-					flex: 1,
-					backgroundColor: COLORS.background,
-				}}
-			>
+			<View style={{ flex: 1, backgroundColor: COLORS.background }}>
 				<ScrollView
 					style={modalStyles.exerciseDetailContainer}
 					showsVerticalScrollIndicator={false}
@@ -836,12 +913,12 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 
 							{selectedExercise.videoUrl && (
 								<CachedVideo
-									remoteUrl={selectedExercise?.videoUrl}
-									videoId={selectedExercise?.id ?? ''}
+									remoteUrl={selectedExercise.videoUrl}
+									videoId={selectedExercise.id}
 									style={styles.video}
-									autoPlay={true}
-									loop={true}
-									muted={true}
+									autoPlay
+									loop
+									muted
 								/>
 							)}
 
@@ -900,9 +977,11 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 										<Text style={modalStyles.detailStatLabel}>
 											Оборудование
 										</Text>
-										<Text style={modalStyles.detailStatValue}>
-											{selectedExercise.equipment.join(', ')}
-										</Text>
+										{selectedExercise.equipment.map((item, index) => (
+											<Text key={index} style={modalStyles.detailStatValue}>
+												{item}
+											</Text>
+										))}
 									</View>
 								</View>
 							</View>
@@ -916,14 +995,13 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 										<Ionicons name='star' size={16} color={COLORS.primary} />
 										<Text style={modalStyles.muscleGroupLabel}>Основные:</Text>
 									</View>
-									{selectedExercise.primaryMuscles.map((muscle, index) => (
-										<View key={index} style={modalStyles.muscleItem}>
+									{selectedExercise.primaryMuscles.map((m, i) => (
+										<View key={i} style={modalStyles.muscleItem}>
 											<View style={modalStyles.muscleDot} />
-											<Text style={modalStyles.muscleText}>{muscle}</Text>
+											<Text style={modalStyles.muscleText}>{m}</Text>
 										</View>
 									))}
 								</View>
-
 								{selectedExercise.secondaryMuscles.length > 0 && (
 									<View style={modalStyles.muscleGroupItem}>
 										<View style={modalStyles.muscleGroupHeader}>
@@ -936,12 +1014,10 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 												Второстепенные:
 											</Text>
 										</View>
-										{selectedExercise.secondaryMuscles.map((muscle, index) => (
-											<View key={index} style={modalStyles.muscleItem}>
+										{selectedExercise.secondaryMuscles.map((m, i) => (
+											<View key={i} style={modalStyles.muscleItem}>
 												<View style={modalStyles.muscleDotSecondary} />
-												<Text style={modalStyles.muscleTextSecondary}>
-													{muscle}
-												</Text>
+												<Text style={modalStyles.muscleTextSecondary}>{m}</Text>
 											</View>
 										))}
 									</View>
@@ -964,18 +1040,18 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 						<View style={modalStyles.section}>
 							<Text style={modalStyles.sectionTitle}>Техника выполнения</Text>
 							<View style={modalStyles.tipsList}>
-								{selectedExercise.tips.map((tip, index) => (
+								{selectedExercise.tips.map((tip, i) => (
 									<View
-										key={index}
+										key={i}
 										style={{
 											...modalStyles.tipItem,
 											borderBottomWidth:
-												index !== selectedExercise.tips.length - 1 ? 1 : 0,
+												i !== selectedExercise.tips.length - 1 ? 1 : 0,
 											borderBottomColor: COLORS.border,
 										}}
 									>
 										<View style={modalStyles.tipNumber}>
-											<Text style={modalStyles.tipNumberText}>{index + 1}</Text>
+											<Text style={modalStyles.tipNumberText}>{i + 1}</Text>
 										</View>
 										<Text style={modalStyles.tipText}>{tip}</Text>
 									</View>
@@ -983,7 +1059,6 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 								<View style={{ height: 40 }} />
 							</View>
 						</View>
-
 						<View style={modalStyles.spacer} />
 					</View>
 				</ScrollView>
@@ -998,10 +1073,9 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 							Добавить в тренировку
 						</Text>
 					</TouchableOpacity>
-
 					{selectedExercise && (
 						<TouchableOpacity
-							style={{ ...modalStyles.favoriteButton }}
+							style={modalStyles.favoriteButton}
 							onPress={() => toggleFavorite(selectedExercise.id)}
 						>
 							<Ionicons
@@ -1049,7 +1123,6 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 					]}
 				>
 					{renderHeader()}
-
 					<View style={modalStyles.content}>
 						{!selectedExercise ? (
 							<>
@@ -1067,16 +1140,14 @@ export const ExerciseSelectionModal: React.FC<ExerciseSelectionModalProps> = ({
 	)
 }
 
-// ImageGallery component
+// ─── Image gallery ────────────────────────────────────────────────────────────
+
 const ImageGallery = ({ images }: { images: any[] }) => {
 	const [activeIndex, setActiveIndex] = useState(0)
-
-	const onScroll = (event: any) => {
-		const slideSize = event.nativeEvent.layoutMeasurement.width
-		const index = event.nativeEvent.contentOffset.x / slideSize
-		setActiveIndex(Math.round(index))
+	const onScroll = (e: any) => {
+		const w = e.nativeEvent.layoutMeasurement.width
+		setActiveIndex(Math.round(e.nativeEvent.contentOffset.x / w))
 	}
-
 	return (
 		<View style={galleryStyles.container}>
 			<FlatList
@@ -1096,16 +1167,16 @@ const ImageGallery = ({ images }: { images: any[] }) => {
 						/>
 					</View>
 				)}
-				keyExtractor={(_, index) => index.toString()}
+				keyExtractor={(_, i) => i.toString()}
 			/>
 			{images.length > 1 && (
 				<View style={galleryStyles.pagination}>
-					{images.map((_, index) => (
+					{images.map((_, i) => (
 						<View
-							key={index}
+							key={i}
 							style={[
 								galleryStyles.dot,
-								index === activeIndex && galleryStyles.activeDot,
+								i === activeIndex && galleryStyles.activeDot,
 							]}
 						/>
 					))}
@@ -1114,6 +1185,8 @@ const ImageGallery = ({ images }: { images: any[] }) => {
 		</View>
 	)
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const galleryStyles = StyleSheet.create({
 	container: { marginVertical: 16 },
@@ -1136,12 +1209,6 @@ const galleryStyles = StyleSheet.create({
 })
 
 const detailModalStyles = StyleSheet.create({
-	bodyImageContainer: {
-		width: '135%',
-		height: 400,
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
 	exerciseImageContainer: {
 		width: '100%',
 		height: 240,
@@ -1190,11 +1257,7 @@ const modalStyles = StyleSheet.create({
 		borderBottomColor: COLORS.border,
 		backgroundColor: COLORS.card,
 	},
-	groupsList: {
-		paddingHorizontal: 8,
-		paddingVertical: 12,
-		gap: 8,
-	},
+	groupsList: { paddingHorizontal: 8, paddingVertical: 12, gap: 8 },
 	groupCard: {
 		width: 90,
 		alignItems: 'center',
@@ -1225,14 +1288,8 @@ const modalStyles = StyleSheet.create({
 		color: COLORS.textSecondary,
 		textAlign: 'center',
 	},
-	groupNameActive: {
-		color: COLORS.primary,
-	},
-	groupCount: {
-		fontSize: 9,
-		color: COLORS.textSecondary,
-		marginTop: 2,
-	},
+	groupNameActive: { color: COLORS.primary },
+	groupCount: { fontSize: 9, color: COLORS.textSecondary, marginTop: 2 },
 	searchContainer: {
 		paddingHorizontal: 8,
 		paddingVertical: 12,
@@ -1358,6 +1415,8 @@ const modalStyles = StyleSheet.create({
 		padding: 12,
 		borderRadius: 12,
 		marginVertical: 4,
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	detailStatIcon: {
 		width: 32,
@@ -1381,10 +1440,24 @@ const modalStyles = StyleSheet.create({
 		color: COLORS.text,
 		marginBottom: 16,
 	},
+	sectionHeader: {
+		paddingHorizontal: 8,
+		paddingVertical: 12,
+		backgroundColor: COLORS.background,
+		borderBottomWidth: 1,
+		borderBottomColor: COLORS.border,
+	},
+	sectionHeaderText: {
+		fontSize: 16,
+		fontWeight: '600',
+		color: COLORS.primary,
+	},
 	muscleGroupsGridDetail: {
 		backgroundColor: COLORS.card,
 		borderRadius: 12,
 		overflow: 'hidden',
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	muscleGroupItem: { padding: 16 },
 	muscleGroupHeader: {
@@ -1420,6 +1493,8 @@ const modalStyles = StyleSheet.create({
 		backgroundColor: COLORS.card,
 		borderRadius: 12,
 		overflow: 'hidden',
+		borderWidth: 1,
+		borderColor: COLORS.border,
 	},
 	tipItem: { flexDirection: 'row', alignItems: 'flex-start', padding: 16 },
 	tipNumber: {
@@ -1488,7 +1563,6 @@ const modalStyles = StyleSheet.create({
 		bottom: 0,
 		left: 0,
 		right: 0,
-		display: 'flex',
 		flexDirection: 'row',
 		paddingHorizontal: 8,
 		paddingVertical: 8,
@@ -1506,12 +1580,6 @@ const modalStyles = StyleSheet.create({
 		paddingVertical: 20,
 		alignItems: 'center',
 		justifyContent: 'center',
-		flexDirection: 'row',
-		gap: 8,
-	},
-	loadingFooterText: {
-		color: COLORS.textSecondary,
-		fontSize: 14,
 	},
 })
 

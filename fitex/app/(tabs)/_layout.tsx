@@ -22,7 +22,7 @@ export default function TabsLayout() {
 		exercises: TemplateExercise[],
 	) => {
 		setShowTemplateModal(false)
-		router.push({
+		router.replace({
 			pathname: '/workout/create',
 			params: {
 				templateId: template.id,
@@ -35,7 +35,7 @@ export default function TabsLayout() {
 
 	const handleStartEmpty = () => {
 		setShowTemplateModal(false)
-		router.push('/workout/create')
+		router.replace('/workout/create')
 	}
 
 	return (

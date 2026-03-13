@@ -1,4 +1,6 @@
 // app/_layout.tsx
+import { SyncProvider } from '@/app/contexts/sync-context'
+import SyncBanner from '@/components/sync-banner'
 import { Stack } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { useEffect } from 'react'
@@ -45,15 +47,26 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
 	return (
-		// 1. Database — ни от чего не зависит
 		<AuthProvider>
 			<DatabaseProvider>
-				{/* 2. Auth — ни от чего не зависит */}
-				{/* 3. SyncInitializer — знает об обоих, монтируется внутри обоих */}
-				<SyncInitializer />
-				<SafeAreaProvider>
-					<RootLayoutContent />
-				</SafeAreaProvider>
+				{/*
+				 * SyncProvider должен быть ВЫШЕ SafeAreaProvider,
+				 * чтобы SyncBanner мог читать insets изнутри SafeAreaProvider.
+				 */}
+				<SyncProvider>
+					{/* SyncInitializer теперь получает useSyncContext через SyncProvider */}
+					<SyncInitializer />
+
+					<SafeAreaProvider>
+						{/*
+						 * SyncBanner — абсолютный оверлей поверх всего.
+						 * position: 'absolute' + zIndex: 9999, pointerEvents: 'none',
+						 * не блокирует тапы.
+						 */}
+						<SyncBanner />
+						<RootLayoutContent />
+					</SafeAreaProvider>
+				</SyncProvider>
 			</DatabaseProvider>
 		</AuthProvider>
 	)

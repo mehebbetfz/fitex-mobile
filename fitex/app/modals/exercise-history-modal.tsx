@@ -1,7 +1,7 @@
-// Создайте новый файл ExerciseHistoryModal.tsx
+// app/modals/exercise-history-modal.tsx
 import { useDatabase } from '@/app/contexts/database-context'
 import { Ionicons } from '@expo/vector-icons'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
 	Animated,
 	Dimensions,
@@ -12,638 +12,794 @@ import {
 	TouchableOpacity,
 	View,
 } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window')
-const COLORS = {
-	primary: '#34C759',
-	primaryDark: '#2CAE4E',
-	background: '#000',
+const { height: SCREEN_HEIGHT } = Dimensions.get('window')
+
+const C = {
+	bg: '#121212',
 	card: '#1C1C1E',
 	cardLight: '#2C2C2E',
 	border: '#3A3A3C',
 	text: '#FFFFFF',
-	textSecondary: '#8E8E93',
-	error: '#FF3B30',
-	success: '#34C759',
+	textSec: '#8E8E93',
+	primary: '#34C759',
 	warning: '#FF9500',
+	error: '#FF3B30',
 	info: '#5AC8FA',
 } as const
 
-interface ExerciseHistoryModalProps {
+// ─── Shimmer ─────────────────────────────────────────────────────────────────
+
+const useShimmer = () => {
+	const a = useRef(new Animated.Value(0)).current
+	useEffect(() => {
+		const loop = Animated.loop(
+			Animated.sequence([
+				Animated.timing(a, {
+					toValue: 1,
+					duration: 750,
+					useNativeDriver: true,
+				}),
+				Animated.timing(a, {
+					toValue: 0,
+					duration: 750,
+					useNativeDriver: true,
+				}),
+			]),
+		)
+		loop.start()
+		return () => loop.stop()
+	}, [])
+	return a.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] })
+}
+
+const Shimmer = ({ style }: { style: any }) => {
+	const opacity = useShimmer()
+	return <Animated.View style={[style, { opacity }]} />
+}
+
+const SkeletonContent = () => (
+	<View style={{ gap: 14 }}>
+		{/* comparison skeleton */}
+		<View style={sk.section}>
+			<Shimmer
+				style={[sk.line, { width: 140, height: 14, marginBottom: 14 }]}
+			/>
+			{[1, 2, 3].map(i => (
+				<View key={i} style={sk.compRow}>
+					<Shimmer style={sk.circle} />
+					<View style={{ flex: 1, gap: 8 }}>
+						<Shimmer style={[sk.line, { width: '70%', height: 12 }]} />
+						<Shimmer style={[sk.line, { width: '50%', height: 12 }]} />
+					</View>
+					<Shimmer
+						style={[sk.line, { width: 60, height: 22, borderRadius: 8 }]}
+					/>
+				</View>
+			))}
+		</View>
+		{/* history skeleton */}
+		<View style={sk.section}>
+			<Shimmer
+				style={[sk.line, { width: 120, height: 14, marginBottom: 14 }]}
+			/>
+			{[1, 2].map(i => (
+				<View key={i} style={[sk.section, { marginBottom: 10 }]}>
+					<View
+						style={{
+							flexDirection: 'row',
+							justifyContent: 'space-between',
+							marginBottom: 10,
+						}}
+					>
+						<Shimmer style={[sk.line, { width: 80, height: 13 }]} />
+						<Shimmer style={[sk.line, { width: 50, height: 13 }]} />
+					</View>
+					{[1, 2, 3].map(j => (
+						<View key={j} style={sk.setRow}>
+							<Shimmer style={[sk.line, { width: 20, height: 11 }]} />
+							<Shimmer style={[sk.line, { width: 70, height: 11 }]} />
+							<Shimmer style={[sk.line, { width: 50, height: 11 }]} />
+						</View>
+					))}
+				</View>
+			))}
+		</View>
+	</View>
+)
+
+const sk = StyleSheet.create({
+	section: {
+		backgroundColor: C.card,
+		borderRadius: 14,
+		padding: 14,
+		borderWidth: 1,
+		borderColor: C.border,
+	},
+	line: { borderRadius: 4, backgroundColor: C.cardLight },
+	circle: {
+		width: 30,
+		height: 30,
+		borderRadius: 15,
+		backgroundColor: C.cardLight,
+		marginRight: 12,
+	},
+	compRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+	setRow: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		paddingVertical: 3,
+	},
+})
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface CurrentSet {
+	setNumber: number
+	weight: number
+	reps: number
+	completed: boolean
+}
+
+interface Props {
 	visible: boolean
 	onClose: () => void
 	exerciseName: string
-	currentSets: Array<{
-		setNumber: number
-		weight: number
-		reps: number
-		completed: boolean
-	}>
+	currentSets: CurrentSet[]
 }
 
-const ExerciseHistoryModal: React.FC<ExerciseHistoryModalProps> = ({
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const fmtDate = (d: string) => {
+	try {
+		const date = new Date(d)
+		const today = new Date()
+		const yesterday = new Date(today)
+		yesterday.setDate(today.getDate() - 1)
+		if (date.toDateString() === today.toDateString()) return 'Сегодня'
+		if (date.toDateString() === yesterday.toDateString()) return 'Вчера'
+		return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+	} catch {
+		return d
+	}
+}
+
+// ─── Diff pill ────────────────────────────────────────────────────────────────
+
+const DiffPill = ({ value, unit = 'кг' }: { value: number; unit?: string }) => {
+	if (value === 0) return null
+	const up = value > 0
+	return (
+		<View
+			style={[
+				dp.pill,
+				{
+					backgroundColor: (up ? C.primary : C.error) + '22',
+					borderColor: (up ? C.primary : C.error) + '55',
+				},
+			]}
+		>
+			<Ionicons
+				name={up ? 'arrow-up' : 'arrow-down'}
+				size={10}
+				color={up ? C.primary : C.error}
+			/>
+			<Text style={[dp.text, { color: up ? C.primary : C.error }]}>
+				{Math.abs(value)}
+				{unit}
+			</Text>
+		</View>
+	)
+}
+const dp = StyleSheet.create({
+	pill: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 3,
+		paddingHorizontal: 7,
+		paddingVertical: 3,
+		borderRadius: 7,
+		borderWidth: 1,
+	},
+	text: { fontSize: 11, fontWeight: '700' },
+})
+
+// ─── Set comparison row ───────────────────────────────────────────────────────
+
+const SetCompareRow = ({
+	index,
+	current,
+	previous,
+}: {
+	index: number
+	current: CurrentSet
+	previous: { weight: number; reps: number } | null
+}) => {
+	const wDiff = previous ? current.weight - previous.weight : null
+	const rDiff = previous ? current.reps - previous.reps : null
+	const vDiff = previous
+		? current.weight * current.reps - previous.weight * previous.reps
+		: null
+
+	return (
+		<View
+			style={[
+				cmp.row,
+				index > 0 && { borderTopWidth: 1, borderTopColor: C.border + '88' },
+			]}
+		>
+			{/* Set number badge */}
+			<View
+				style={[
+					cmp.badge,
+					{ backgroundColor: current.completed ? C.primary : C.cardLight },
+				]}
+			>
+				<Text
+					style={[
+						cmp.badgeText,
+						{ color: current.completed ? C.bg : C.textSec },
+					]}
+				>
+					{index + 1}
+				</Text>
+			</View>
+
+			{/* Values */}
+			<View style={cmp.vals}>
+				{previous ? (
+					<>
+						<View style={cmp.valLine}>
+							<Text style={cmp.label}>Прошлый раз</Text>
+							<Text style={cmp.prev}>
+								{previous.weight} кг × {previous.reps}
+							</Text>
+						</View>
+						<View style={cmp.valLine}>
+							<Text style={cmp.label}>Сейчас</Text>
+							<Text style={cmp.curr}>
+								{current.weight} кг × {current.reps}
+							</Text>
+						</View>
+					</>
+				) : (
+					<View style={cmp.valLine}>
+						<Text style={cmp.label}>Сейчас</Text>
+						<Text style={cmp.curr}>
+							{current.weight} кг × {current.reps}
+						</Text>
+					</View>
+				)}
+			</View>
+
+			{/* Diff pills */}
+			{previous && (
+				<View style={cmp.pills}>
+					{wDiff !== null && <DiffPill value={wDiff} unit='кг' />}
+					{rDiff !== null && <DiffPill value={rDiff} unit=' пов' />}
+					{vDiff !== null && vDiff !== 0 && (
+						<View
+							style={[
+								dp.pill,
+								{
+									backgroundColor: (vDiff > 0 ? C.primary : C.error) + '22',
+									borderColor: (vDiff > 0 ? C.primary : C.error) + '55',
+								},
+							]}
+						>
+							<Text
+								style={[dp.text, { color: vDiff > 0 ? C.primary : C.error }]}
+							>
+								{vDiff > 0 ? '+' : ''}
+								{vDiff}кг объём
+							</Text>
+						</View>
+					)}
+				</View>
+			)}
+		</View>
+	)
+}
+
+const cmp = StyleSheet.create({
+	row: {
+		flexDirection: 'row',
+		alignItems: 'flex-start',
+		paddingVertical: 12,
+		gap: 10,
+	},
+	badge: {
+		width: 30,
+		height: 30,
+		borderRadius: 15,
+		alignItems: 'center',
+		justifyContent: 'center',
+		flexShrink: 0,
+		marginTop: 2,
+	},
+	badgeText: { fontSize: 13, fontWeight: '700' },
+	vals: { flex: 1, gap: 5 },
+	valLine: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+	},
+	label: { fontSize: 12, color: C.textSec },
+	prev: { fontSize: 12, color: C.textSec },
+	curr: { fontSize: 13, fontWeight: '600', color: C.text },
+	pills: { gap: 4, alignItems: 'flex-end', flexShrink: 0 },
+})
+
+// ─── History card ─────────────────────────────────────────────────────────────
+
+const HistoryCard = ({
+	entry,
+	isLatest,
+}: {
+	entry: any
+	isLatest: boolean
+}) => {
+	const sets: Array<{ weight: number; reps: number; set_number?: number }> =
+		entry.sets ?? []
+	const maxW = sets.length ? Math.max(...sets.map(s => s.weight)) : 0
+	const vol = sets.reduce((sum, s) => sum + s.weight * s.reps, 0)
+
+	return (
+		<View style={[hc.card, isLatest && { borderColor: C.warning + '55' }]}>
+			<View style={hc.header}>
+				<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+					{isLatest && (
+						<View style={[hc.dot, { backgroundColor: C.warning }]} />
+					)}
+					<Text style={hc.date}>{fmtDate(entry.date)}</Text>
+					{entry.time ? <Text style={hc.time}>{entry.time}</Text> : null}
+				</View>
+				<View style={{ flexDirection: 'row', gap: 8 }}>
+					<View style={hc.pill}>
+						<Ionicons name='barbell-outline' size={11} color={C.textSec} />
+						<Text style={hc.pillTxt}>{maxW} кг макс</Text>
+					</View>
+					<View style={hc.pill}>
+						<Ionicons name='layers-outline' size={11} color={C.textSec} />
+						<Text style={hc.pillTxt}>{vol.toFixed(0)} кг</Text>
+					</View>
+				</View>
+			</View>
+			{/* Sets as chips */}
+			<View style={hc.chips}>
+				{sets.map((s, i) => (
+					<View key={i} style={hc.chip}>
+						<Text style={hc.chipNum}>{s.set_number ?? i + 1}</Text>
+						<Text style={hc.chipVal}>
+							{s.weight} кг × {s.reps}
+						</Text>
+						<Text style={hc.chipVol}>{(s.weight * s.reps).toFixed(0)}</Text>
+					</View>
+				))}
+			</View>
+		</View>
+	)
+}
+
+const hc = StyleSheet.create({
+	card: {
+		backgroundColor: C.card,
+		borderRadius: 14,
+		padding: 14,
+		borderWidth: 1,
+		borderColor: C.border,
+		marginBottom: 10,
+	},
+	header: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		marginBottom: 12,
+	},
+	dot: { width: 7, height: 7, borderRadius: 3.5 },
+	date: { fontSize: 14, fontWeight: '600', color: C.text },
+	time: { fontSize: 12, color: C.textSec },
+	pill: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4,
+		backgroundColor: C.cardLight,
+		borderRadius: 8,
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+	},
+	pillTxt: { fontSize: 11, color: C.textSec, fontWeight: '500' },
+	chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+	chip: {
+		backgroundColor: C.cardLight,
+		borderRadius: 8,
+		paddingHorizontal: 10,
+		paddingVertical: 7,
+		alignItems: 'center',
+		minWidth: 70,
+	},
+	chipNum: { fontSize: 10, color: C.textSec, marginBottom: 2 },
+	chipVal: { fontSize: 12, fontWeight: '600', color: C.text },
+	chipVol: { fontSize: 10, color: C.primary, marginTop: 1 },
+})
+
+// ─── Section label ────────────────────────────────────────────────────────────
+
+const SectionLabel = ({ label }: { label: string }) => (
+	<View style={sl.row}>
+		<View style={sl.line} />
+		<Text style={sl.text}>{label}</Text>
+		<View style={sl.line} />
+	</View>
+)
+const sl = StyleSheet.create({
+	row: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 10,
+		marginBottom: 12,
+		marginTop: 4,
+	},
+	line: { flex: 1, height: 1, backgroundColor: C.border },
+	text: {
+		fontSize: 11,
+		color: C.textSec,
+		fontWeight: '700',
+		letterSpacing: 1,
+		textTransform: 'uppercase',
+	},
+})
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+export default function ExerciseHistoryModal({
 	visible,
 	onClose,
 	exerciseName,
 	currentSets,
-}) => {
-	const insets = useSafeAreaInsets()
+}: Props) {
+	const { fetchExerciseHistory, getExerciseRecords } = useDatabase()
 
-	const { fetchExerciseHistory, getExerciseRecords, calculateOneRepMax } =
-		useDatabase()
 	const [history, setHistory] = useState<any[]>([])
 	const [records, setRecords] = useState<any>(null)
-	const [isLoading, setIsLoading] = useState(true)
-	const [slideAnim] = useState(new Animated.Value(SCREEN_WIDTH))
+	const [loading, setLoading] = useState(false)
+
+	const slideY = useRef(new Animated.Value(SCREEN_HEIGHT)).current
+	const [mounted, setMounted] = useState(false)
 
 	useEffect(() => {
 		if (visible) {
-			loadHistory()
-			Animated.timing(slideAnim, {
-				toValue: 0,
-				duration: 300,
-				useNativeDriver: true,
-			}).start()
-		} else {
-			Animated.timing(slideAnim, {
-				toValue: SCREEN_WIDTH,
-				duration: 250,
-				useNativeDriver: true,
-			}).start()
-		}
-	}, [visible])
-
-	const loadHistory = async () => {
-		setIsLoading(true)
-		try {
-			const [historyData, recordsData] = await Promise.all([
+			setMounted(true)
+			// Load everything at once — no staggered rendering
+			setLoading(true)
+			Promise.all([
 				fetchExerciseHistory(exerciseName),
 				getExerciseRecords(exerciseName),
 			])
-			setHistory(historyData)
-			setRecords(recordsData)
-		} catch (error) {
-			console.error('Error loading history:', error)
-		} finally {
-			setIsLoading(false)
-		}
-	}
+				.then(([h, r]) => {
+					setHistory(h)
+					setRecords(r)
+				})
+				.catch(() => {
+					setHistory([])
+					setRecords(null)
+				})
+				.finally(() => setLoading(false))
 
-	const formatDate = (dateString: string) => {
-		const date = new Date(dateString)
-		const today = new Date()
-		const yesterday = new Date(today)
-		yesterday.setDate(yesterday.getDate() - 1)
-
-		if (date.toDateString() === today.toDateString()) {
-			return 'Сегодня'
-		} else if (date.toDateString() === yesterday.toDateString()) {
-			return 'Вчера'
+			Animated.spring(slideY, {
+				toValue: 0,
+				useNativeDriver: true,
+				tension: 65,
+				friction: 11,
+			}).start()
 		} else {
-			const day = date.getDate().toString().padStart(2, '0')
-			const month = (date.getMonth() + 1).toString().padStart(2, '0')
-			return `${day}.${month}`
+			Animated.timing(slideY, {
+				toValue: SCREEN_HEIGHT,
+				duration: 260,
+				useNativeDriver: true,
+			}).start(() => setMounted(false))
 		}
-	}
+	}, [visible, exerciseName])
 
-	const getComparison = (currentSet: any, previousSet: any) => {
-		if (!previousSet) return { weightDiff: 0, repsDiff: 0, volumeDiff: 0 }
+	if (!mounted) return null
 
-		const currentVolume = currentSet.weight * currentSet.reps
-		const previousVolume = previousSet.weight * previousSet.reps
+	// Last workout sets for comparison
+	const lastSets: Array<{ set_number: number; weight: number; reps: number }> =
+		records?.lastWorkout?.sets ?? []
 
-		return {
-			weightDiff: currentSet.weight - previousSet.weight,
-			repsDiff: currentSet.reps - previousSet.reps,
-			volumeDiff: currentVolume - previousVolume,
-			volumePercent:
-				previousVolume > 0
-					? (((currentVolume - previousVolume) / previousVolume) * 100).toFixed(
-							1,
-						)
-					: '100.0',
-		}
-	}
+	// Volume totals
+	const currentVol = currentSets.reduce((s, x) => s + x.weight * x.reps, 0)
+	const lastVol = records?.lastWorkout?.totalVolume ?? 0
+	const volDiff = lastVol > 0 ? currentVol - lastVol : null
 
-	const renderComparisonIcon = (
-		value: number,
-		type: 'weight' | 'reps' | 'volume',
-	) => {
-		if (value === 0) return null
-
-		const isPositive = value > 0
-		const iconName = isPositive ? 'arrow-up' : 'arrow-down'
-		const color = isPositive ? COLORS.success : COLORS.error
-		const absoluteValue = Math.abs(value)
-
-		let formattedValue = ''
-		if (type === 'weight') {
-			formattedValue = `${absoluteValue}кг`
-		} else if (type === 'reps') {
-			formattedValue = `${absoluteValue}`
-		} else {
-			formattedValue = `${absoluteValue}кг`
-		}
-
-		return (
-			<View style={styles.comparisonContainer}>
-				<Ionicons name={iconName} size={12} color={color} />
-				<Text style={[styles.comparisonText, { color }]}>{formattedValue}</Text>
-			</View>
-		)
-	}
-
-	const renderSetComparison = (setIndex: number, currentSet: any) => {
-		const lastWorkoutSets = records?.lastWorkout?.sets || []
-		const previousSet = lastWorkoutSets.find(
-			(s: any) => s.set_number === setIndex + 1,
-		)
-
-		if (!previousSet) return null
-
-		const comparison = getComparison(currentSet, previousSet)
-
-		return (
-			<View style={styles.setComparisonRow}>
-				<View style={styles.setNumber}>
-					<Text style={styles.setNumberText}>{setIndex + 1}</Text>
-				</View>
-
-				<View style={styles.comparisonValues}>
-					<View style={styles.comparisonItem}>
-						<Text style={styles.comparisonLabel}>Прошлый раз:</Text>
-						<Text style={styles.comparisonValue}>
-							{previousSet.weight}кг × {previousSet.reps}
-						</Text>
-					</View>
-
-					<View style={styles.comparisonItem}>
-						<Text style={styles.comparisonLabel}>Сейчас:</Text>
-						<Text style={styles.comparisonValue}>
-							{currentSet.weight}кг × {currentSet.reps}
-						</Text>
-					</View>
-
-					{(comparison.weightDiff !== 0 || comparison.repsDiff !== 0) && (
-						<View style={styles.differenceContainer}>
-							<Text style={styles.differenceLabel}>Разница:</Text>
-							{comparison.weightDiff !== 0 &&
-								renderComparisonIcon(comparison.weightDiff, 'weight')}
-							{comparison.repsDiff !== 0 &&
-								renderComparisonIcon(comparison.repsDiff, 'reps')}
-							{comparison.volumeDiff !== 0 && (
-								<Text
-									style={[
-										styles.volumePercent,
-										{
-											color:
-												comparison.volumeDiff > 0
-													? COLORS.success
-													: COLORS.error,
-										},
-									]}
-								>
-									{comparison.volumePercent}%
-								</Text>
-							)}
-						</View>
-					)}
-				</View>
-			</View>
-		)
-	}
-
-	if (!visible) return null
+	// Best set
+	const bestSet = records?.bestSet
 
 	return (
 		<Modal
 			transparent
-			visible={visible}
+			visible={mounted}
 			animationType='none'
 			onRequestClose={onClose}
 		>
-			<View style={styles.modalOverlay}>
-				<TouchableOpacity
-					style={styles.modalBackdrop}
-					activeOpacity={1}
-					onPress={onClose}
-				/>
-				<Animated.View
-					style={[
-						styles.modalContainer,
-						{
-							top: insets.top,
-						},
-						{ transform: [{ translateX: slideAnim }] },
-					]}
-				>
-					<View style={styles.header}>
-						<View style={styles.headerLeft}>
-							<Ionicons name='barbell' size={24} color={COLORS.primary} />
-							<Text style={styles.headerTitle} numberOfLines={1}>
-								{exerciseName}
+			<TouchableOpacity
+				style={ms.backdrop}
+				activeOpacity={1}
+				onPress={onClose}
+			/>
+
+			<Animated.View
+				style={[ms.sheet, { transform: [{ translateY: slideY }] }]}
+			>
+				{/* Handle */}
+				<View style={ms.handle} />
+
+				{/* Header */}
+				<View style={ms.header}>
+					<View style={ms.headerIcon}>
+						<Ionicons name='barbell' size={18} color={C.primary} />
+					</View>
+					<Text style={ms.title} numberOfLines={1}>
+						{exerciseName}
+					</Text>
+
+					{/* Volume diff badge in header */}
+					{!loading && volDiff !== null && (
+						<View
+							style={[
+								ms.volBadge,
+								{
+									backgroundColor: (volDiff >= 0 ? C.primary : C.error) + '22',
+									borderColor: (volDiff >= 0 ? C.primary : C.error) + '44',
+								},
+							]}
+						>
+							<Ionicons
+								name={volDiff >= 0 ? 'trending-up' : 'trending-down'}
+								size={13}
+								color={volDiff >= 0 ? C.primary : C.error}
+							/>
+							<Text
+								style={[
+									ms.volBadgeTxt,
+									{ color: volDiff >= 0 ? C.primary : C.error },
+								]}
+							>
+								{volDiff >= 0 ? '+' : ''}
+								{volDiff.toFixed(0)} кг объём
 							</Text>
 						</View>
-						<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-							<Ionicons name='close' size={24} color={COLORS.text} />
-						</TouchableOpacity>
-					</View>
+					)}
 
-					<ScrollView style={styles.content}>
-						{isLoading ? (
-							<View style={styles.loadingContainer}>
-								<Ionicons name='barbell' size={48} color={COLORS.primary} />
-								<Text style={styles.loadingText}>Загрузка истории...</Text>
-							</View>
-						) : (
-							<>
-								{/* Рекорды */}
-								{records?.lastWorkout?.sets?.length && (
-									<View style={styles.recordsSection}>
-										<Text style={styles.sectionTitle}>Рекорды</Text>
-										<View style={styles.recordsGrid}>
-											{records.bestSet.weight > 0 && (
-												<View style={styles.bestSetCard}>
-													<Ionicons
-														name='star'
-														size={20}
-														color={COLORS.warning}
-													/>
-													<View style={styles.bestSetInfo}>
-														<Text style={styles.bestSetText}>
-															Лучший подход: {records.bestSet.weight}кг ×{' '}
-															{records.bestSet.reps}
+					<TouchableOpacity
+						style={ms.closeBtn}
+						onPress={onClose}
+						activeOpacity={0.7}
+					>
+						<Ionicons name='close' size={22} color={C.textSec} />
+					</TouchableOpacity>
+				</View>
+
+				<ScrollView
+					style={{ flex: 1 }}
+					contentContainerStyle={ms.scroll}
+					showsVerticalScrollIndicator={false}
+				>
+					{loading ? (
+						<SkeletonContent />
+					) : (
+						<>
+							{/* ── Best set ──────────────────────────────────── */}
+							{bestSet?.weight > 0 && (
+								<View style={ms.bestCard}>
+									<Ionicons name='star' size={16} color={C.warning} />
+									<Text style={ms.bestTxt}>
+										Лучший подход:{' '}
+										<Text style={{ color: C.text, fontWeight: '700' }}>
+											{bestSet.weight} кг × {bestSet.reps}
+										</Text>
+									</Text>
+									<Text style={ms.bestDate}>{fmtDate(bestSet.date)}</Text>
+								</View>
+							)}
+
+							{/* ── Set-by-set comparison ─────────────────────── */}
+							{currentSets.length > 0 && lastSets.length > 0 && (
+								<>
+									<SectionLabel
+										label={`Сравнение с ${fmtDate(records.lastWorkout.date)}`}
+									/>
+									<View style={ms.card}>
+										{currentSets.map((cur, i) => {
+											const prev =
+												lastSets.find(s => s.set_number === i + 1) ?? null
+											return (
+												<SetCompareRow
+													key={i}
+													index={i}
+													current={cur}
+													previous={prev}
+												/>
+											)
+										})}
+
+										{/* Volume summary row */}
+										{lastVol > 0 && (
+											<View style={ms.volRow}>
+												<View style={ms.volLine}>
+													<Text style={ms.volLabel}>Прошлый объём</Text>
+													<Text style={ms.volVal}>{lastVol} кг</Text>
+												</View>
+												<View style={ms.volLine}>
+													<Text style={ms.volLabel}>Текущий объём</Text>
+													<View
+														style={{
+															flexDirection: 'row',
+															alignItems: 'center',
+															gap: 8,
+														}}
+													>
+														<Text style={[ms.volVal, { color: C.primary }]}>
+															{currentVol} кг
 														</Text>
-														<Text style={styles.bestSetDate}>
-															{formatDate(records.bestSet.date)}
-														</Text>
+														{volDiff !== null && (
+															<DiffPill value={volDiff} unit=' кг' />
+														)}
 													</View>
 												</View>
-											)}
-										</View>
+											</View>
+										)}
 									</View>
-								)}
+								</>
+							)}
 
-								{/* Сравнение с последней тренировкой */}
-								{records?.lastWorkout?.sets?.length > 0 &&
-									currentSets.length && (
-										<View style={styles.comparisonSection}>
-											<View style={styles.sectionHeader}>
-												<Text style={styles.sectionTitle}>
-													Сравнение ({formatDate(records.lastWorkout.date)})
-												</Text>
-											</View>
-
-											{currentSets.map((set, index) => (
-												<View key={index}>
-													{renderSetComparison(index, set)}
-												</View>
-											))}
-
-											{/* Общее сравнение объема */}
-											{currentSets.length > 0 && (
-												<View style={styles.totalVolumeComparison}>
-													<View style={styles.volumeItem}>
-														<Text style={styles.volumeLabel}>
-															Прошлый объем:
-														</Text>
-														<Text style={styles.volumeValue}>
-															{records.lastWorkout.totalVolume}кг
-														</Text>
-													</View>
-													<View style={styles.volumeItem}>
-														<Text style={styles.volumeLabel}>
-															Текущий объем:
-														</Text>
-														<Text style={styles.volumeValue}>
-															{currentSets.reduce(
-																(sum, set) => sum + set.weight * set.reps,
-																0,
-															)}
-															кг
-														</Text>
-													</View>
-												</View>
-											)}
-										</View>
-									)}
-
-								{/* История тренировок */}
-								{history.length > 0 && (
-									<View style={styles.historySection}>
-										<Text style={styles.sectionTitle}>История тренировок</Text>
-										{history.map((workout, index) => (
-											<View key={index} style={styles.historyItem}>
-												<View style={styles.historyHeader}>
-													<Text style={styles.historyDate}>
-														{formatDate(workout.date)} {workout.time}
-													</Text>
-													<Text style={styles.historyVolume}>
-														{workout.totalVolume}кг
-													</Text>
-												</View>
-
-												<View style={styles.historySets}>
-													{workout.sets.map((set: any, setIndex: number) => (
-														<View key={setIndex} style={styles.historySet}>
-															<Text style={styles.setNumberSmall}>
-																{set.set_number}
-															</Text>
-															<Text style={styles.setDetails}>
-																{set.weight}кг × {set.reps}
-															</Text>
-															<Text style={styles.setVolume}>
-																{set.weight * set.reps}кг
-															</Text>
-														</View>
-													))}
-												</View>
-											</View>
+							{/* Current sets shown alone when no comparison */}
+							{currentSets.length > 0 && lastSets.length === 0 && (
+								<>
+									<SectionLabel label='Текущая тренировка' />
+									<View style={ms.card}>
+										{currentSets.map((cur, i) => (
+											<SetCompareRow
+												key={i}
+												index={i}
+												current={cur}
+												previous={null}
+											/>
 										))}
 									</View>
-								)}
-							</>
-						)}
-					</ScrollView>
-				</Animated.View>
-			</View>
+								</>
+							)}
+
+							{/* ── History ───────────────────────────────────── */}
+							{history.length > 0 && (
+								<>
+									<SectionLabel label='История тренировок' />
+									{history.map((entry, i) => (
+										<HistoryCard
+											key={`${entry.date}-${i}`}
+											entry={entry}
+											isLatest={i === 0}
+										/>
+									))}
+								</>
+							)}
+
+							{history.length === 0 && currentSets.length === 0 && (
+								<View style={ms.empty}>
+									<Ionicons name='time-outline' size={44} color={C.textSec} />
+									<Text style={ms.emptyTitle}>Нет истории</Text>
+									<Text style={ms.emptyTxt}>
+										Данные появятся после первой тренировки
+									</Text>
+								</View>
+							)}
+						</>
+					)}
+				</ScrollView>
+			</Animated.View>
 		</Modal>
 	)
 }
 
-const styles = StyleSheet.create({
-	modalOverlay: {
-		flex: 1,
-		backgroundColor: 'rgba(0, 0, 0, 0.5)',
-	},
-	modalBackdrop: {
+// ─── Sheet styles ─────────────────────────────────────────────────────────────
+
+const ms = StyleSheet.create({
+	backdrop: {
 		...StyleSheet.absoluteFillObject,
+		backgroundColor: 'rgba(0,0,0,0.55)',
 	},
-	modalContainer: {
+	sheet: {
 		position: 'absolute',
-		right: 0,
 		bottom: 0,
-		width: SCREEN_WIDTH * 0.9,
-		backgroundColor: '#121212',
-		borderLeftWidth: 1,
-		borderLeftColor: COLORS.border,
+		left: 0,
+		right: 0,
+		maxHeight: SCREEN_HEIGHT * 0.85,
+		backgroundColor: C.bg,
+		borderTopLeftRadius: 24,
+		borderTopRightRadius: 24,
+		borderTopWidth: 1,
+		borderTopColor: C.border,
+		overflow: 'hidden',
+	},
+	handle: {
+		width: 40,
+		height: 4,
+		borderRadius: 2,
+		backgroundColor: C.border,
+		alignSelf: 'center',
+		marginTop: 12,
+		marginBottom: 4,
 	},
 	header: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		justifyContent: 'space-between',
+		gap: 10,
 		paddingHorizontal: 16,
-		paddingVertical: 12,
-		backgroundColor: COLORS.card,
+		paddingVertical: 14,
 		borderBottomWidth: 1,
-		borderBottomColor: COLORS.border,
+		borderBottomColor: C.border,
 	},
-	headerLeft: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		flex: 1,
-	},
-	headerTitle: {
-		fontSize: 18,
-		fontWeight: '600',
-		color: COLORS.text,
-		marginLeft: 12,
-		flex: 1,
-	},
-	closeButton: {
-		padding: 4,
-	},
-	content: {
-		flex: 1,
-		padding: 16,
-	},
-	loadingContainer: {
-		flex: 1,
+	headerIcon: {
+		width: 34,
+		height: 34,
+		borderRadius: 17,
+		backgroundColor: C.primary + '22',
 		alignItems: 'center',
 		justifyContent: 'center',
-		padding: 40,
 	},
-	loadingText: {
-		fontSize: 16,
-		color: COLORS.textSecondary,
-		marginTop: 16,
-	},
-	recordsSection: {
-		marginBottom: 24,
-	},
-	sectionTitle: {
-		fontSize: 16,
-		fontWeight: 'bold',
-		color: COLORS.text,
-		marginBottom: 12,
-	},
-	recordsGrid: {
-		flexDirection: 'row',
-		gap: 12,
-	},
-	recordCard: {
-		width: (SCREEN_WIDTH * 0.9 - 54) / 3,
-		backgroundColor: COLORS.card,
-		borderRadius: 12,
-		padding: 16,
-		alignItems: 'center',
-		borderWidth: 1,
-		borderColor: COLORS.border,
-	},
-	recordValue: {
-		fontSize: 20,
-		fontWeight: 'bold',
-		color: COLORS.text,
-		marginTop: 8,
-		marginBottom: 4,
-	},
-	recordLabel: {
-		fontSize: 12,
-		color: COLORS.textSecondary,
-	},
-	bestSetCard: {
-		width: '100%',
-		backgroundColor: COLORS.card,
-		borderRadius: 12,
-		padding: 16,
+	title: { flex: 1, fontSize: 17, fontWeight: '700', color: C.text },
+	volBadge: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		borderWidth: 1,
-		borderColor: COLORS.border,
-		marginTop: 8,
-	},
-	bestSetInfo: {
-		marginLeft: 12,
-		flex: 1,
-	},
-	bestSetText: {
-		fontSize: 14,
-		color: COLORS.text,
-		fontWeight: '500',
-	},
-	bestSetDate: {
-		fontSize: 12,
-		color: COLORS.textSecondary,
-		marginTop: 2,
-	},
-	comparisonSection: {
-		backgroundColor: COLORS.card,
-		borderRadius: 12,
-		padding: 16,
-		marginBottom: 24,
-		borderWidth: 1,
-		borderColor: COLORS.border,
-	},
-	sectionHeader: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 16,
-	},
-	setComparisonRow: {
-		flexDirection: 'row',
-		alignItems: 'flex-start',
-		marginBottom: 16,
-		paddingBottom: 16,
-		borderBottomWidth: 1,
-		borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-	},
-	setNumber: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
-		backgroundColor: COLORS.primary,
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginRight: 12,
-	},
-	setNumberText: {
-		fontSize: 14,
-		fontWeight: 'bold',
-		color: COLORS.background,
-	},
-	comparisonValues: {
-		flex: 1,
-	},
-	comparisonItem: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		marginBottom: 4,
-	},
-	comparisonLabel: {
-		fontSize: 14,
-		color: COLORS.textSecondary,
-	},
-	comparisonValue: {
-		fontSize: 14,
-		fontWeight: '500',
-		color: COLORS.text,
-	},
-	differenceContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		marginTop: 8,
-		flexWrap: 'wrap',
-		gap: 8,
-	},
-	differenceLabel: {
-		fontSize: 12,
-		color: COLORS.textSecondary,
-		marginRight: 8,
-	},
-	comparisonContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		backgroundColor: 'rgba(52, 199, 89, 0.1)',
-		paddingHorizontal: 8,
-		paddingVertical: 4,
-		borderRadius: 6,
 		gap: 4,
-	},
-	comparisonText: {
-		fontSize: 11,
-		fontWeight: '600',
-	},
-	volumePercent: {
-		fontSize: 11,
-		fontWeight: '600',
-		marginLeft: 8,
-	},
-	totalVolumeComparison: {},
-	volumeItem: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		marginBottom: 8,
-	},
-	volumeLabel: {
-		fontSize: 14,
-		color: COLORS.text,
-	},
-	volumeValue: {
-		fontSize: 14,
-		fontWeight: 'bold',
-		color: COLORS.primary,
-	},
-	historySection: {
-		marginBottom: 24,
-	},
-	historyItem: {
-		backgroundColor: COLORS.card,
-		borderRadius: 12,
-		padding: 16,
-		marginBottom: 12,
 		borderWidth: 1,
-		borderColor: COLORS.border,
+		borderRadius: 10,
+		paddingHorizontal: 9,
+		paddingVertical: 5,
 	},
-	historyHeader: {
+	volBadgeTxt: { fontSize: 12, fontWeight: '700' },
+	closeBtn: { padding: 4 },
+	scroll: { paddingHorizontal: 16, paddingBottom: 36, paddingTop: 14, gap: 0 },
+
+	bestCard: {
 		flexDirection: 'row',
-		justifyContent: 'space-between',
 		alignItems: 'center',
-		marginBottom: 12,
+		gap: 8,
+		backgroundColor: C.warning + '18',
+		borderRadius: 12,
+		padding: 12,
+		borderWidth: 1,
+		borderColor: C.warning + '44',
+		marginBottom: 14,
 	},
-	historyDate: {
-		fontSize: 14,
-		fontWeight: '500',
-		color: COLORS.text,
+	bestTxt: { flex: 1, fontSize: 13, color: C.textSec },
+	bestDate: { fontSize: 12, color: C.textSec },
+
+	card: {
+		backgroundColor: C.card,
+		borderRadius: 14,
+		paddingHorizontal: 14,
+		borderWidth: 1,
+		borderColor: C.border,
+		marginBottom: 14,
 	},
-	historyVolume: {
-		fontSize: 14,
-		fontWeight: 'bold',
-		color: COLORS.primary,
-	},
-	historySets: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
+
+	volRow: {
+		borderTopWidth: 1,
+		borderTopColor: C.border,
+		paddingTop: 12,
+		paddingBottom: 4,
 		gap: 8,
 	},
-	historySet: {
+	volLine: {
 		flexDirection: 'row',
+		justifyContent: 'space-between',
 		alignItems: 'center',
-		backgroundColor: COLORS.cardLight,
-		paddingHorizontal: 12,
-		paddingVertical: 8,
-		borderRadius: 8,
-		marginRight: 8,
-		marginBottom: 8,
 	},
-	setNumberSmall: {
-		fontSize: 12,
-		color: COLORS.textSecondary,
-		marginRight: 8,
-		fontWeight: '500',
-	},
-	setDetails: {
-		fontSize: 12,
-		color: COLORS.text,
-		fontWeight: '500',
-		marginRight: 8,
-	},
-	setVolume: {
-		fontSize: 12,
-		color: COLORS.primary,
-		fontWeight: '600',
-	},
-})
+	volLabel: { fontSize: 13, color: C.textSec },
+	volVal: { fontSize: 14, fontWeight: '600', color: C.text },
 
-export default ExerciseHistoryModal
+	empty: { alignItems: 'center', paddingVertical: 48, gap: 10 },
+	emptyTitle: { fontSize: 16, fontWeight: '600', color: C.text },
+	emptyTxt: { fontSize: 13, color: C.textSec, textAlign: 'center' },
+})

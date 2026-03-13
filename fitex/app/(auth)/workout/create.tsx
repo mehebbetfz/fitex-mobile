@@ -1,13 +1,11 @@
 import { useDatabase } from '@/app/contexts/database-context'
+import { ExerciseDetailModal } from '@/app/modals/exercise-detail-modal'
 import ExerciseHistoryModal from '@/app/modals/exercise-history-modal'
 import { ExerciseSelectionModal } from '@/app/modals/exercise-selection.modal'
 import {
 	ExerciseFormItem,
 	TemplateFormData,
 } from '@/app/screens/create-template.screen'
-import { CachedVideo } from '@/components/cached-video'
-import ManBackSvg from '@/components/man-back-svg'
-import ManFrontSvg from '@/components/man-front-svg'
 import {
 	manBackMuscleGroupParts,
 	manFrontMuscleGroupParts,
@@ -17,17 +15,12 @@ import { TemplateExercise, WorkoutTemplate } from '@/scripts/database'
 import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Haptics from 'expo-haptics'
-import { Image } from 'expo-image'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useVideoPlayer } from 'expo-video'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
 	Alert,
-	Animated,
 	AppState,
 	Dimensions,
-	FlatList,
-	Modal,
 	ScrollView,
 	StyleSheet,
 	Text,
@@ -495,23 +488,7 @@ const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
 										onPress={() => {
 											Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 											if (exercise.id) {
-												Alert.alert(
-													'Удалить упражнение?',
-													'Все подходы также будут удалены',
-													[
-														{ text: 'Отмена', style: 'cancel' },
-														{
-															text: 'Удалить',
-															style: 'destructive',
-															onPress: () => {
-																Haptics.impactAsync(
-																	Haptics.ImpactFeedbackStyle.Medium,
-																)
-																onRemoveExercise(exercise.id!)
-															},
-														},
-													],
-												)
+												onRemoveExercise(exercise.id)
 											}
 										}}
 										activeOpacity={0.7}
@@ -567,7 +544,7 @@ const ExerciseItem: React.FC<ExerciseItemProps> = React.memo(
 
 							{exercise.sets.map(set => (
 								<SetRow
-									key={set.id || `${exercise.id}-${set.setNumber}`}
+									key={`${exercise.id}-${set.id || set.setNumber}`} // Более стабильный ключ
 									set={set}
 									exerciseId={exercise.id!}
 									onComplete={onSetComplete}
@@ -689,16 +666,24 @@ export default function CreateWorkoutScreen() {
 		}
 	}, [templateExercises, templateName])
 
+	const handleAppStateChange = useCallback(
+		async (nextAppState: string) => {
+			if (nextAppState === 'active' && isWorkoutActive) {
+				await updateWorkoutDuration()
+			}
+		},
+		[isWorkoutActive],
+	)
+
+	// И в useEffect:
 	useEffect(() => {
 		loadWorkoutState()
-		const appStateSubscription = AppState.addEventListener(
+		const subscription = AppState.addEventListener(
 			'change',
 			handleAppStateChange,
 		)
-		return () => {
-			appStateSubscription.remove()
-		}
-	}, [])
+		return () => subscription.remove()
+	}, [handleAppStateChange])
 
 	const loadWorkoutState = async () => {
 		try {
@@ -718,12 +703,6 @@ export default function CreateWorkoutScreen() {
 		}
 	}
 
-	const handleAppStateChange = async (nextAppState: string) => {
-		if (nextAppState === 'active' && isWorkoutActive) {
-			await updateWorkoutDuration()
-		}
-	}
-
 	const updateWorkoutDuration = async () => {
 		try {
 			const startTimeStr = await AsyncStorage.getItem(WORKOUT_START_TIME_KEY)
@@ -738,26 +717,30 @@ export default function CreateWorkoutScreen() {
 	}
 
 	useEffect(() => {
+		return () => {
+			// Очищаем всё при уходе со страницы
+			setExercises([])
+			setWorkoutDuration(0)
+			setIsWorkoutActive(false)
+			stopWorkoutTimer() // Очищаем AsyncStorage
+		}
+	}, [])
+
+	useEffect(() => {
 		let interval: NodeJS.Timeout
+
 		if (isWorkoutActive) {
 			interval = setInterval(() => {
 				setWorkoutDuration(prev => prev + 1)
 			}, 1000)
 		}
+
 		return () => {
-			if (interval) clearInterval(interval)
+			if (interval) {
+				clearInterval(interval)
+			}
 		}
 	}, [isWorkoutActive])
-
-	useEffect(() => {
-		let interval: NodeJS.Timeout
-		if (isTimerRunning) {
-			interval = setInterval(() => {
-				setTimer(prev => prev + 1)
-			}, 1000)
-		}
-		return () => clearInterval(interval)
-	}, [isTimerRunning])
 
 	const startWorkoutTimer = async () => {
 		try {
@@ -773,11 +756,14 @@ export default function CreateWorkoutScreen() {
 		}
 	}
 
+	// В функции stopWorkoutTimer
 	const stopWorkoutTimer = async () => {
 		try {
 			await Promise.all([
 				AsyncStorage.removeItem(WORKOUT_START_TIME_KEY),
 				AsyncStorage.removeItem(WORKOUT_ACTIVE_KEY),
+				// Очищаем все старые ключи тренировок
+				AsyncStorage.removeItem('@last_workout_data'),
 			])
 			setIsWorkoutActive(false)
 		} catch (error) {
@@ -840,7 +826,7 @@ export default function CreateWorkoutScreen() {
 		return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 	}, [])
 
-	const toggleExerciseCollapse = (exerciseId: number) => {
+	const toggleExerciseCollapse = useCallback((exerciseId: number) => {
 		setExercises(prev =>
 			prev.map(exercise =>
 				exercise.id === exerciseId
@@ -848,11 +834,11 @@ export default function CreateWorkoutScreen() {
 					: exercise,
 			),
 		)
-	}
+	}, [])
 
-	const handleSetComplete = (exerciseId: number, setId: number) => {
-		setExercises(prevExercises =>
-			prevExercises.map(exercise => {
+	const handleSetComplete = useCallback((exerciseId: number, setId: number) => {
+		setExercises(prev =>
+			prev.map(exercise => {
 				if (exercise.id === exerciseId) {
 					const updatedSets = exercise.sets.map(set =>
 						set.id === setId ? { ...set, completed: !set.completed } : set,
@@ -862,7 +848,7 @@ export default function CreateWorkoutScreen() {
 				return exercise
 			}),
 		)
-	}
+	}, [])
 
 	const handleUpdateSet = (
 		exerciseId: number,
@@ -937,20 +923,38 @@ export default function CreateWorkoutScreen() {
 	}
 
 	const handleRemoveExercise = (exerciseId: number) => {
-		Alert.alert('Удалить упражнение?', 'Все подходы также будут удалены', [
-			{ text: 'Отмена', style: 'cancel' },
+		// Добавляем флаг для предотвращения двойного вызова
+		const alertShownRef = { current: false }
+
+		if (alertShownRef.current) return
+		alertShownRef.current = true
+
+		Alert.alert(
+			'Удалить упражнение?',
+			'Все подходы также будут удалены',
+			[
+				{ text: 'Отмена', style: 'cancel' },
+				{
+					text: 'Удалить',
+					style: 'destructive',
+					onPress: () => {
+						Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+						setExercises(prev => {
+							const newExercises = prev.filter(ex => ex.id !== exerciseId)
+							if (newExercises.length === 0 && prev.length > 0)
+								stopWorkoutTimer()
+							return newExercises
+						})
+					},
+				},
+			],
 			{
-				text: 'Удалить',
-				style: 'destructive',
-				onPress: () => {
-					setExercises(prev => {
-						const newExercises = prev.filter(ex => ex.id !== exerciseId)
-						if (newExercises.length === 0 && prev.length > 0) stopWorkoutTimer()
-						return newExercises
-					})
+				cancelable: true,
+				onDismiss: () => {
+					alertShownRef.current = false
 				},
 			},
-		])
+		)
 	}
 
 	const handleExerciseSelect = (exercise: {
@@ -986,6 +990,9 @@ export default function CreateWorkoutScreen() {
 			return
 		}
 
+		// Предотвращаем двойное завершение
+		if (isSaving) return
+
 		Alert.alert(
 			'Завершить тренировку?',
 			`Вы выполнили ${exercises.length} упражнений, ${totalSets} подходов\nОбщий объем: ${totalVolume} кг\nВремя: ${formatTime(workoutDuration)}`,
@@ -1015,14 +1022,19 @@ export default function CreateWorkoutScreen() {
 
 							await completeWorkout(workoutData)
 							await stopWorkoutTimer()
-							router.push('/')
+
+							// Очищаем состояние перед переходом
+							setExercises([])
+							setWorkoutName('Моя тренировка')
+							setNotes('')
+							setWorkoutDuration(0)
+
+							// Используем replace с навигацией на главный таб
+							router.replace('/(tabs)')
 						} catch (error) {
 							console.error('Error saving workout:', error)
 							Alert.alert('Ошибка', 'Не удалось сохранить тренировку')
-						} finally {
-							setTimeout(() => {
-								setIsSaving(false)
-							}, 3000)
+							setIsSaving(false)
 						}
 					},
 				},
@@ -1048,13 +1060,13 @@ export default function CreateWorkoutScreen() {
 						style: 'destructive',
 						onPress: async () => {
 							await stopWorkoutTimer()
-							router.back()
+							router.replace('/(tabs)')
 						},
 					},
 				],
 			)
 		} else {
-			router.back()
+			router.replace('/(tabs)')
 		}
 	}
 
@@ -1092,7 +1104,7 @@ export default function CreateWorkoutScreen() {
 					style={styles.headerButton}
 					activeOpacity={0.7}
 				>
-					<Ionicons name='arrow-back' size={24} color={COLORS.text} />
+					<Ionicons name='close' size={24} color={COLORS.text} />
 				</TouchableOpacity>
 
 				<View style={styles.headerCenter}>
@@ -1255,494 +1267,6 @@ interface ExerciseDetailModalProps {
 	visible: boolean
 	onClose: () => void
 	exerciseDetail: ExerciseDetail | null
-}
-
-const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({
-	visible,
-	onClose,
-	exerciseDetail,
-}) => {
-	const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current
-	const [modalVisible, setModalVisible] = useState(false)
-
-	const player = useVideoPlayer({ uri: exerciseDetail?.videoUrl }, player => {
-		player.loop = true
-		player.play()
-		player.muted = false
-	})
-
-	useEffect(() => {
-		if (visible) {
-			setModalVisible(true)
-			Animated.timing(slideAnim, {
-				toValue: 0,
-				duration: 300,
-				useNativeDriver: true,
-			}).start()
-		} else {
-			Animated.timing(slideAnim, {
-				toValue: SCREEN_HEIGHT,
-				duration: 250,
-				useNativeDriver: true,
-			}).start(() => {
-				setModalVisible(false)
-			})
-		}
-	}, [visible])
-
-	const close = () => {
-		player.pause()
-		onClose()
-	}
-
-	if (!modalVisible || !exerciseDetail) return null
-
-	const getTintColor = (percent: number): string => {
-		const p = Math.max(0, Math.min(100, percent)) / 100
-		const r = 255
-		const g = Math.round(255 * (1 - p))
-		const b = 0
-		return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-	}
-
-	const getFrontMuscleColors = () => {
-		const muscleColors: { [key: string]: string } = {}
-		MUSCLE_FRONT_DATA.forEach(muscle => {
-			muscle.muscleImages.forEach(imageKey => {
-				if (exerciseDetail.primaryFrontMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(100)
-				if (exerciseDetail.secondaryFrontMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(50)
-			})
-		})
-		return muscleColors
-	}
-
-	const getBackMuscleColors = () => {
-		const muscleColors: { [key: string]: string } = {}
-		MUSCLE_BACK_DATA.forEach(muscle => {
-			muscle.muscleImages.forEach(imageKey => {
-				if (exerciseDetail.primaryBackMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(100)
-				if (exerciseDetail.secondaryBackMuscles.includes(imageKey))
-					muscleColors[imageKey] = getTintColor(50)
-			})
-		})
-		return muscleColors
-	}
-
-	return (
-		<Modal
-			transparent
-			visible={modalVisible}
-			animationType='none'
-			onRequestClose={close}
-		>
-			<View style={detailModalStyles.modalOverlay}>
-				<TouchableOpacity
-					style={detailModalStyles.modalBackdrop}
-					activeOpacity={1}
-					onPress={() => {
-						Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-						onClose()
-					}}
-				/>
-				<Animated.View
-					style={[
-						detailModalStyles.modalContainer,
-						{ transform: [{ translateY: slideAnim }] },
-					]}
-				>
-					<View style={detailModalStyles.header}>
-						<TouchableOpacity
-							style={detailModalStyles.backButton}
-							onPress={() => {
-								Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-								onClose()
-							}}
-							activeOpacity={0.7}
-						>
-							<Ionicons name='close' size={24} color={COLORS.text} />
-						</TouchableOpacity>
-						<Text style={detailModalStyles.headerTitle} numberOfLines={1}>
-							{exerciseDetail.name}
-						</Text>
-					</View>
-
-					<ScrollView
-						style={detailModalStyles.content}
-						showsVerticalScrollIndicator={false}
-					>
-						<View style={detailModalStyles.exerciseDetailContent}>
-							<View style={detailModalStyles.exerciseTitleContainer}>
-								<Text style={detailModalStyles.exerciseDetailTitle}>
-									{exerciseDetail.name}
-								</Text>
-							</View>
-
-							{exerciseDetail.videoUrl && (
-								<CachedVideo
-									remoteUrl={exerciseDetail?.videoUrl}
-									videoId={exerciseDetail?.id ?? ''}
-									style={styles.video}
-									autoPlay={true}
-									loop={true}
-									muted={true}
-								/>
-							)}
-
-							{exerciseDetail.images && exerciseDetail.images.length > 0 && (
-								<ImageGallery images={exerciseDetail.images} />
-							)}
-
-							{!exerciseDetail.videoUrl &&
-								(!exerciseDetail.images ||
-									exerciseDetail.images.length === 0) && (
-									<View style={detailModalStyles.exerciseImageContainer}>
-										<Image
-											transition={200}
-											source={exerciseDetail.image}
-											style={detailModalStyles.exerciseMainImage}
-										/>
-									</View>
-								)}
-
-							{!exerciseDetail.videoUrl && (
-								<View style={detailModalStyles.exerciseImageContainer}>
-									<Image
-										transition={200}
-										source={exerciseDetail.image}
-										style={detailModalStyles.exerciseMainImage}
-									/>
-								</View>
-							)}
-
-							<Text style={detailModalStyles.exerciseDetailDescriptionFull}>
-								{exerciseDetail.description}
-							</Text>
-
-							<View style={detailModalStyles.detailStats}>
-								<View style={detailModalStyles.detailStat}>
-									<View style={detailModalStyles.detailStatIcon}>
-										<Ionicons name='barbell' size={18} color={COLORS.primary} />
-									</View>
-									<View>
-										<Text style={detailModalStyles.detailStatLabel}>
-											Сложность
-										</Text>
-										<Text style={detailModalStyles.detailStatValue}>
-											{exerciseDetail.difficulty}
-										</Text>
-									</View>
-								</View>
-								<View style={detailModalStyles.detailStat}>
-									<View style={detailModalStyles.detailStatIcon}>
-										<Ionicons
-											name='construct'
-											size={18}
-											color={COLORS.primary}
-										/>
-									</View>
-									<View>
-										<Text style={detailModalStyles.detailStatLabel}>
-											Оборудование
-										</Text>
-										<Text style={detailModalStyles.detailStatValue}>
-											{exerciseDetail.equipment.join(', ')}
-										</Text>
-									</View>
-								</View>
-							</View>
-
-							<View style={detailModalStyles.section}>
-								<Text style={detailModalStyles.sectionTitle}>
-									Работающие мышцы
-								</Text>
-								<View style={detailModalStyles.muscleGroupsGridDetail}>
-									<View style={detailModalStyles.muscleGroupItem}>
-										<View style={detailModalStyles.muscleGroupHeader}>
-											<Ionicons name='star' size={16} color={COLORS.primary} />
-											<Text style={detailModalStyles.muscleGroupLabel}>
-												Основные:
-											</Text>
-										</View>
-										{exerciseDetail.primaryMuscles.map((muscle, index) => (
-											<View key={index} style={detailModalStyles.muscleItem}>
-												<View style={detailModalStyles.muscleDot} />
-												<Text style={detailModalStyles.muscleText}>
-													{muscle}
-												</Text>
-											</View>
-										))}
-									</View>
-
-									{exerciseDetail.secondaryMuscles.length > 0 && (
-										<View style={detailModalStyles.muscleGroupItem}>
-											<View style={detailModalStyles.muscleGroupHeader}>
-												<Ionicons
-													name='star-outline'
-													size={16}
-													color={COLORS.textSecondary}
-												/>
-												<Text style={detailModalStyles.muscleGroupLabel}>
-													Второстепенные:
-												</Text>
-											</View>
-											{exerciseDetail.secondaryMuscles.map((muscle, index) => (
-												<View key={index} style={detailModalStyles.muscleItem}>
-													<View style={detailModalStyles.muscleDotSecondary} />
-													<Text style={detailModalStyles.muscleTextSecondary}>
-														{muscle}
-													</Text>
-												</View>
-											))}
-										</View>
-									)}
-								</View>
-
-								<View style={{ flexDirection: 'row', marginTop: 16 }}>
-									<View style={detailModalStyles.bodyImageContainer}>
-										<ManBackSvg muscleColors={getBackMuscleColors()} />
-									</View>
-									<View style={detailModalStyles.bodyImageContainer}>
-										<ManFrontSvg muscleColors={getFrontMuscleColors()} />
-									</View>
-								</View>
-							</View>
-
-							<View style={detailModalStyles.section}>
-								<Text style={detailModalStyles.sectionTitle}>
-									Техника выполнения
-								</Text>
-								<View style={detailModalStyles.tipsList}>
-									{exerciseDetail.tips.map((tip, index) => (
-										<View
-											key={index}
-											style={{
-												...detailModalStyles.tipItem,
-												borderBottomWidth:
-													index !== exerciseDetail.tips.length - 1 ? 1 : 0,
-												borderBottomColor: COLORS.border,
-											}}
-										>
-											<View style={detailModalStyles.tipNumber}>
-												<Text style={detailModalStyles.tipNumberText}>
-													{index + 1}
-												</Text>
-											</View>
-											<Text style={detailModalStyles.tipText}>{tip}</Text>
-										</View>
-									))}
-								</View>
-							</View>
-
-							<View style={detailModalStyles.spacer} />
-						</View>
-					</ScrollView>
-				</Animated.View>
-			</View>
-		</Modal>
-	)
-}
-
-const detailModalStyles = StyleSheet.create({
-	modalOverlay: {
-		flex: 1,
-		backgroundColor: '#121212',
-		justifyContent: 'flex-end',
-	},
-	modalBackdrop: { ...StyleSheet.absoluteFillObject },
-	modalContainer: {
-		backgroundColor: '#121212',
-		borderTopLeftRadius: 24,
-		borderTopRightRadius: 24,
-		height: '95%',
-	},
-	header: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-		paddingHorizontal: 8,
-		paddingVertical: 12,
-		backgroundColor: COLORS.card,
-		borderBottomWidth: 1,
-		borderBottomColor: COLORS.border,
-	},
-	backButton: { padding: 8 },
-	headerTitle: {
-		flex: 1,
-		fontSize: 18,
-		fontWeight: '600',
-		color: COLORS.text,
-		textAlign: 'center',
-		marginHorizontal: 8,
-	},
-	content: { flex: 1 },
-	exerciseDetailContent: { padding: 16 },
-	exerciseTitleContainer: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: 12,
-	},
-	exerciseDetailTitle: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		color: COLORS.text,
-		flex: 1,
-		marginRight: 8,
-	},
-	exerciseImageContainer: {
-		width: '100%',
-		height: 240,
-		position: 'relative',
-		marginBottom: 20,
-	},
-	exerciseMainImage: { width: '100%', height: '100%', borderRadius: 12 },
-	exerciseDetailDescriptionFull: {
-		fontSize: 15,
-		color: COLORS.text,
-		lineHeight: 22,
-		marginBottom: 20,
-	},
-	detailStats: { marginBottom: 24 },
-	detailStat: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		backgroundColor: COLORS.card,
-		padding: 12,
-		borderRadius: 12,
-		marginBottom: 8,
-	},
-	detailStatIcon: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
-		backgroundColor: 'rgba(52, 199, 89, 0.1)',
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginRight: 12,
-	},
-	detailStatLabel: {
-		fontSize: 11,
-		color: COLORS.textSecondary,
-		marginBottom: 2,
-	},
-	detailStatValue: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-	section: { marginBottom: 24 },
-	sectionTitle: {
-		fontSize: 18,
-		fontWeight: 'bold',
-		color: COLORS.text,
-		marginBottom: 16,
-	},
-	muscleGroupsGridDetail: {
-		backgroundColor: COLORS.card,
-		borderRadius: 12,
-		overflow: 'hidden',
-	},
-	muscleGroupItem: { padding: 16 },
-	muscleGroupHeader: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		marginBottom: 12,
-	},
-	muscleGroupLabel: {
-		fontSize: 14,
-		fontWeight: '600',
-		color: COLORS.text,
-		marginLeft: 8,
-	},
-	muscleItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-	muscleDot: {
-		width: 8,
-		height: 8,
-		borderRadius: 4,
-		backgroundColor: COLORS.primary,
-		marginRight: 12,
-	},
-	muscleText: { fontSize: 14, color: COLORS.text, flex: 1 },
-	muscleDotSecondary: {
-		width: 8,
-		height: 8,
-		borderRadius: 4,
-		backgroundColor: COLORS.textSecondary,
-		marginRight: 12,
-	},
-	muscleTextSecondary: { fontSize: 14, color: COLORS.textSecondary, flex: 1 },
-	bodyImageContainer: {
-		width: '135%',
-		height: 400,
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
-	tipsList: {
-		backgroundColor: COLORS.card,
-		borderRadius: 12,
-		overflow: 'hidden',
-	},
-	tipItem: { flexDirection: 'row', alignItems: 'flex-start', padding: 16 },
-	tipNumber: {
-		width: 24,
-		height: 24,
-		borderRadius: 12,
-		backgroundColor: COLORS.primary,
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginRight: 12,
-		flexShrink: 0,
-	},
-	tipNumberText: { fontSize: 12, fontWeight: 'bold', color: COLORS.background },
-	tipText: { fontSize: 14, color: COLORS.text, flex: 1, lineHeight: 20 },
-	spacer: { height: 32 },
-})
-
-// ImageGallery component
-const ImageGallery = ({ images }: { images: any[] }) => {
-	const [activeIndex, setActiveIndex] = useState(0)
-
-	const onScroll = (event: any) => {
-		const slideSize = event.nativeEvent.layoutMeasurement.width
-		const index = event.nativeEvent.contentOffset.x / slideSize
-		setActiveIndex(Math.round(index))
-	}
-
-	return (
-		<View style={galleryStyles.container}>
-			<FlatList
-				data={images}
-				horizontal
-				pagingEnabled
-				showsHorizontalScrollIndicator={false}
-				onScroll={onScroll}
-				scrollEventThrottle={16}
-				renderItem={({ item }) => (
-					<View style={galleryStyles.imageContainer}>
-						<Image
-							source={item}
-							style={galleryStyles.image}
-							contentFit='cover'
-							transition={200}
-						/>
-					</View>
-				)}
-				keyExtractor={(_, index) => index.toString()}
-			/>
-			{images.length > 1 && (
-				<View style={galleryStyles.pagination}>
-					{images.map((_, index) => (
-						<View
-							key={index}
-							style={[
-								galleryStyles.dot,
-								index === activeIndex && galleryStyles.activeDot,
-							]}
-						/>
-					))}
-				</View>
-			)}
-		</View>
-	)
 }
 
 const galleryStyles = StyleSheet.create({

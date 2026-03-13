@@ -247,55 +247,79 @@ const FadeIn = ({
 }
 
 // ─────────────────────────────────────────────
-// Скелетоны с shimmer-анимацией
+// Скелетоны с shimmer-анимацией и задержкой 500ms
 // ─────────────────────────────────────────────
+const DelayedSkeleton = ({
+	children,
+	delay = 500,
+}: {
+	children: React.ReactNode
+	delay?: number
+}) => {
+	const [show, setShow] = useState(false)
+
+	useEffect(() => {
+		const timer = setTimeout(() => setShow(true), delay)
+		return () => clearTimeout(timer)
+	}, [delay])
+
+	if (!show) return null
+	return <>{children}</>
+}
+
 const ChartSkeleton = () => (
-	<View style={styles.skeletonContainer}>
-		<View style={styles.skeletonMetricSelector}>
-			{[80, 65, 75, 55].map((w, i) => (
-				<ShimmerBlock
-					key={i}
-					style={[styles.skeletonMetricButton, { width: w }]}
-				/>
-			))}
+	<DelayedSkeleton>
+		<View style={styles.skeletonContainer}>
+			<View style={styles.skeletonMetricSelector}>
+				{[80, 65, 75, 55].map((w, i) => (
+					<ShimmerBlock
+						key={i}
+						style={[styles.skeletonMetricButton, { width: w }]}
+					/>
+				))}
+			</View>
+			<ShimmerBlock style={styles.skeletonCurrentValue} />
+			<ShimmerBlock style={styles.skeletonChart} />
 		</View>
-		<ShimmerBlock style={styles.skeletonCurrentValue} />
-		<ShimmerBlock style={styles.skeletonChart} />
-	</View>
+	</DelayedSkeleton>
 )
 
 const MeasurementSkeleton = () => (
-	<View style={[styles.measurementGridItem, { marginBottom: 6 }]}>
-		<View style={styles.measurementGridLeft}>
-			<ShimmerBlock style={styles.skeletonIcon} />
-			<ShimmerBlock style={[styles.skeletonText, { width: 70 }]} />
+	<DelayedSkeleton>
+		<View style={[styles.measurementGridItem, { marginBottom: 6 }]}>
+			<View style={styles.measurementGridLeft}>
+				<ShimmerBlock style={styles.skeletonIcon} />
+				<ShimmerBlock style={[styles.skeletonText, { width: 70 }]} />
+			</View>
+			<View style={styles.measurementGridRight}>
+				<ShimmerBlock style={styles.skeletonValue} />
+				<ShimmerBlock style={styles.skeletonTrend} />
+			</View>
 		</View>
-		<View style={styles.measurementGridRight}>
-			<ShimmerBlock style={styles.skeletonValue} />
-			<ShimmerBlock style={styles.skeletonTrend} />
-		</View>
-	</View>
+	</DelayedSkeleton>
 )
 
 const RecordSkeleton = () => (
-	<View style={[styles.recordCard, { marginBottom: 6 }]}>
-		<ShimmerBlock style={styles.skeletonIcon} />
-		<View style={styles.recordBody}>
-			<ShimmerBlock style={[styles.skeletonText, { width: '60%' }]} />
-			<ShimmerBlock
-				style={[
-					styles.skeletonText,
-					{ width: '40%', height: 12, marginTop: 6 },
-				]}
-			/>
+	<DelayedSkeleton>
+		<View style={[styles.recordCard, { marginBottom: 6 }]}>
+			<ShimmerBlock style={styles.skeletonIcon} />
+			<View style={styles.recordBody}>
+				<ShimmerBlock style={[styles.skeletonText, { width: '60%' }]} />
+				<ShimmerBlock
+					style={[
+						styles.skeletonText,
+						{ width: '40%', height: 12, marginTop: 6 },
+					]}
+				/>
+			</View>
+			<View style={styles.recordRight}>
+				<ShimmerBlock style={[styles.skeletonValue, { width: 50 }]} />
+				<ShimmerBlock
+					style={[styles.skeletonTrend, { width: 20, marginTop: 4 }]}
+				/>
+			</View>
 		</View>
-		<View style={styles.recordRight}>
-			<ShimmerBlock style={[styles.skeletonValue, { width: 50 }]} />
-			<ShimmerBlock
-				style={[styles.skeletonTrend, { width: 20, marginTop: 4 }]}
-			/>
-		</View>
-	</View>
+	</DelayedSkeleton>
 )
 
 // ─────────────────────────────────────────────

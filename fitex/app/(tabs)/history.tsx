@@ -231,7 +231,7 @@ const InitialLoadingSkeleton = () => (
 						key={i}
 						style={[
 							styles.filterButton,
-							{ width: i === 2 ? 100 : i === 4 ? 80 : 70 },
+							{ width: i === 2 ? 100 : i === 4 ? 80 : 70, paddingVertical: 12 },
 						]}
 					/>
 				))}
@@ -575,6 +575,8 @@ const styles = StyleSheet.create({
 	filtersContainer: {
 		paddingRight: 20,
 		gap: 8,
+		display: 'flex',
+		flexDirection: 'row',
 	},
 	filterButton: {
 		paddingHorizontal: 8,
